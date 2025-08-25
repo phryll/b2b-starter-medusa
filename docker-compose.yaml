@@ -9,21 +9,11 @@ services:
       POSTGRES_DB: postgres
     volumes:
       - medusa-db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   redis:
     image: redis:7.2
     ports:
       - "6380:6380"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   medusa:
     build:
@@ -55,10 +45,8 @@ services:
     ports:
       - "9000:9000"
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - db
+      - redis
     command: ["./entrypoint.sh"]
     restart: unless-stopped
 

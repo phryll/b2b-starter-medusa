@@ -9,6 +9,22 @@ fi
 echo "Using DATABASE_URL=$DATABASE_URL"
 echo "Using REDIS_URL=$REDIS_URL"
 
+# Force PostgreSQL to not use SSL
+export PGSSLMODE=disable
+export PGSSLCERT=""
+export PGSSLKEY=""
+export PGSSLROOTCERT=""
+
+# Ensure DATABASE_URL has proper SSL disable parameters
+if [[ "$DATABASE_URL" != *"sslmode=disable"* ]]; then
+  if [[ "$DATABASE_URL" == *"?"* ]]; then
+    export DATABASE_URL="${DATABASE_URL}&sslmode=disable"
+  else
+    export DATABASE_URL="${DATABASE_URL}?sslmode=disable"
+  fi
+  echo "Updated DATABASE_URL=$DATABASE_URL"
+fi
+
 # Skip database creation - just run migrations
 echo "Running database migrations..."
 yarn medusa db:migrate
