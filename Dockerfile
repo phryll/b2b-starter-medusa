@@ -14,6 +14,15 @@ ARG ADMIN_CORS
 ARG AUTH_CORS
 ARG PORT
 
+ENV DATABASE_URL=$DATABASE_URL
+ENV REDIS_URL=$REDIS_URL
+ENV COOKIE_SECRET=${COOKIE_SECRET}
+ENV JWT_SECRET=${JWT_SECRET}
+ENV STORE_CORS=${STORE_CORS}
+ENV ADMIN_CORS=${ADMIN_CORS}
+ENV AUTH_CORS=${AUTH_CORS}
+ENV PORT=${PORT}
+
 ENV DATABASE_URL=${DATABASE_URL}
 ENV REDIS_URL=${REDIS_URL}
 ENV COOKIE_SECRET=${COOKIE_SECRET}
@@ -21,7 +30,18 @@ ENV JWT_SECRET=${JWT_SECRET}
 ENV STORE_CORS=${STORE_CORS}
 ENV ADMIN_CORS=${ADMIN_CORS}
 ENV AUTH_CORS=${AUTH_CORS}
-ENV PORT=${PORT}
+
+# Create .env file with all necessary variables
+RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
+    && echo "REDIS_URL=${REDIS_URL}" >> .env \
+    && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
+    && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
+    && echo "STORE_CORS=${STORE_CORS}" >> .env \
+    && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
+    && echo "AUTH_CORS=${AUTH_CORS}" >> .env
+
+RUN echo "DATABASE_URL=$DATABASE_URL" \
+    && echo "REDIS_URL=$REDIS_URL"
 
 
 RUN echo "${PORT}"
@@ -100,17 +120,6 @@ EXPOSE 9000
 # Health Check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:9000/health || exit 1
-
-
-# Create .env file with all necessary variables
-RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
-    && echo "REDIS_URL=${REDIS_URL}" >> .env \
-    && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
-    && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
-    && echo "STORE_CORS=${STORE_CORS}" >> .env \
-    && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
-    && echo "AUTH_CORS=${AUTH_CORS}" >> .env
-
 
 
 # Run database migrations & seed data
