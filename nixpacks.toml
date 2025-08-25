@@ -1,47 +1,72 @@
-# nixpacks.toml - Perfekt optimiert für MedusaJS B2B Starter auf CPX21
-# Konfiguriert für: 4GB RAM, 3 vCPU, PostgreSQL + Redis
+# Dockerfile für MedusaJS B2B Starter - Optimiert für CPX21 (4GB RAM, 3 vCPU)
+# Multi-stage build für optimale Image-Größe
 
-providers = ["node"]
+# Build Stage
+FROM node:20-slim AS builder
 
-[variables]
-# Production-Umgebung
-NODE_ENV = "production"
-# Node.js 20 LTS für beste Kompatibilität und Performance
-NIXPACKS_NODE_VERSION = "20"
-# Memory-Optimierung für CPX21 (4GB RAM)
-NODE_OPTIONS = "--max-old-space-size=2048"
-# NPM-Konfiguration für Production-Builds
-NPM_CONFIG_PRODUCTION = "false"
+# Arbeitsverzeichnis setzen
+WORKDIR /app
 
-[phases.setup]
-# Node.js 20 und Yarn installieren
-nixPkgs = ["nodejs_20", "yarn"]
-# Zusätzliche Tools für bessere Performance
-nixLibs = ["openssl"]
+# System-Dependencies installieren
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-[phases.install]
-# Corepack aktivieren und Dependencies installieren 
-cmds = [
-    "cd backend && corepack enable && yarn install --frozen-lockfile --network-timeout 300000"
-]
-# Cache-Verzeichnisse für Yarn 4 (Modern Yarn)
-cacheDirectories = [
-    "backend/node_modules",
-    "backend/.yarn/cache"
-]
+# Corepack aktivieren für Yarn 4.4.0
+RUN corepack enable
 
-[phases.build]
-# MedusaJS Backend builden mit Corepack
-cmds = [
-    "cd backend && corepack enable && yarn medusa build"
-]
-# Build-Cache für wiederholte Deployments
-cacheDirectories = [
-    "backend/dist",
-    "backend/node_modules/.cache"
-]
+# Package.json und Yarn-Files kopieren
+COPY backend/package.json backend/yarn.lock ./backend/
+COPY backend/.yarnrc.yml ./backend/
 
-[start]
-# Production-Start mit Corepack und Medusa CLI
-# Port 9000 ist der Standard für MedusaJS
-cmd = "cd backend && corepack enable && yarn medusa start"
+# Working Directory ins backend wechseln
+WORKDIR /app/backend
+
+# Dependencies installieren mit Yarn 4
+RUN yarn install --immutable --network-timeout 300000
+
+# Source Code kopieren
+COPY backend/ ./
+
+# MedusaJS Backend builden
+RUN yarn medusa build
+
+# Production Stage
+FROM node:20-slim AS production
+
+# Arbeitsverzeichnis setzen
+WORKDIR /app/backend
+
+# System-Dependencies für Production installieren
+RUN apt-get update && apt-get install -y \
+    python3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Corepack aktivieren
+RUN corepack enable
+
+# Built application von builder stage kopieren
+COPY --from=builder /app/backend/package.json ./
+COPY --from=builder /app/backend/yarn.lock ./
+COPY --from=builder /app/backend/.yarnrc.yml ./
+COPY --from=builder /app/backend/node_modules ./node_modules
+COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /app/backend/src ./src
+COPY --from=builder /app/backend/medusa-config.* ./
+
+# Environment Variables für Production
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
+# Port 9000 für MedusaJS exposieren
+EXPOSE 9000
+
+# Health Check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:9000/health || exit 1
+
+# MedusaJS starten
+CMD ["yarn", "medusa", "start"]
