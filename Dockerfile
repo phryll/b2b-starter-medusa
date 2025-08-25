@@ -1,7 +1,7 @@
 # --------------------
 # Build Stage
 # --------------------
-FROM node:23-slim AS builder
+FROM node:23 AS builder
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN yarn medusa build
 # --------------------
 # Production Stage
 # --------------------
-FROM node:23-slim AS production
+FROM node:23 AS production
 
 WORKDIR /app
 
