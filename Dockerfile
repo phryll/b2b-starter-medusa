@@ -23,21 +23,6 @@ ENV ADMIN_CORS=${ADMIN_CORS}
 ENV AUTH_CORS=${AUTH_CORS}
 ENV PORT=${PORT}
 
-# Create .env file with all necessary variables
-RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
-    && echo "REDIS_URL=${REDIS_URL}" >> .env \
-    && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
-    && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
-    && echo "STORE_CORS=${STORE_CORS}" >> .env \
-    && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
-    && echo "AUTH_CORS=${AUTH_CORS}" >> .env
-
-RUN echo "DATABASE_URL=${DATABASE_URL}" \
-    && echo "REDIS_URL=${REDIS_URL}"
-
-
-RUN echo "${PORT}"
-
 # Arbeitsverzeichnis setzen
 WORKDIR /app
 
@@ -57,6 +42,15 @@ COPY backend/.yarnrc.yml ./backend/
 
 # Working Directory ins backend wechseln
 WORKDIR /app/backend
+
+# Create .env file with all necessary variables
+RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
+    && echo "REDIS_URL=${REDIS_URL}" >> .env \
+    && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
+    && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
+    && echo "STORE_CORS=${STORE_CORS}" >> .env \
+    && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
+    && echo "AUTH_CORS=${AUTH_CORS}" >> .env
 
 # Dependencies installieren mit Yarn 4 (Lockfile-Updates erlauben)
 RUN yarn install --network-timeout 300000 \
