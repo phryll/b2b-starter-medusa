@@ -82,15 +82,7 @@ RUN apt-get update && apt-get install -y curl \
 RUN corepack enable
 
 # Copy built app vom Builder
-COPY --from=builder /app/backend/package.json ./
-COPY --from=builder /app/backend/yarn.lock ./
-COPY --from=builder /app/backend/.yarnrc.yml ./
-COPY --from=builder /app/backend/node_modules ./node_modules
-COPY --from=builder /app/backend/.medusa ./.medusa
-COPY --from=builder /app/backend/src ./src
-COPY --from=builder /app/backend/medusa-config.* ./
-COPY --from=builder /app/backend/tsconfig.json ./
-COPY --from=builder /app/backend/.env ./  # .env auch in Production
+COPY --from=builder /app/backend ./ 
 
 # Environment Variables für Production (falls nicht über .env gesetzt)
 ENV NODE_ENV=production
