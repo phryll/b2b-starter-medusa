@@ -33,8 +33,9 @@ FROM node:23-slim AS production
 
 WORKDIR /app
 
-# System dependencies for production
+# System dependencies for production including wget for health checks
 RUN apt-get update && apt-get install -y \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable
