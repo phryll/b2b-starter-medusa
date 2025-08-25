@@ -53,7 +53,7 @@ COPY --from=builder /app/backend/package.json ./
 COPY --from=builder /app/backend/yarn.lock ./
 COPY --from=builder /app/backend/.yarnrc.yml ./
 COPY --from=builder /app/backend/node_modules ./node_modules
-COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /app/backend/.medusa ./.medusa
 COPY --from=builder /app/backend/src ./src
 COPY --from=builder /app/backend/medusa-config.* ./
 
