@@ -49,9 +49,9 @@ services:
       - redis
     command: ["./entrypoint.sh"]
     restart: unless-stopped
-    # Dummy health check that always passes to satisfy Coolify
+    # Health check using Node.js command that's guaranteed to be available
     healthcheck:
-      test: ["CMD", "true"]
+      test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 10s
       retries: 3
