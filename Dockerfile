@@ -24,8 +24,8 @@ COPY backend/.yarnrc.yml ./backend/
 # Working Directory ins backend wechseln
 WORKDIR /app/backend
 
-# Dependencies installieren mit Yarn 4
-RUN yarn install --immutable --network-timeout 300000
+# Dependencies installieren mit Yarn 4 (Lockfile-Updates erlauben)
+RUN yarn install --network-timeout 300000
 
 # Source Code kopieren
 COPY backend/ ./
