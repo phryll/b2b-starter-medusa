@@ -1,16 +1,24 @@
-# Dockerfile für MedusaJS B2B Starter - Optimiert für CPX21 (4GB RAM, 3 vCPU)
-# Multi-stage build für optimale Image-Größe
-
-# -------------------------------
+# --------------------
 # Build Stage
-# -------------------------------
+# --------------------
 FROM node:20-slim AS builder
 
-# Build-Time ARGs definieren
-FROM deps AS build
+WORKDIR /app
+
+# System Dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Corepack aktivieren
+RUN corepack enable
+
+# Kopiere nur package.json + yarn.lock + .yarnrc.yml
+COPY backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
+
+# .env erstellen
 ARG DATABASE_URL
 ARG REDIS_URL
-ARG WORKER_MODE
 ARG COOKIE_SECRET
 ARG JWT_SECRET
 ARG STORE_CORS
@@ -18,84 +26,48 @@ ARG ADMIN_CORS
 ARG AUTH_CORS
 ARG PORT
 
-# ENV Variablen setzen (für Build und spätere Runtime optional)
-ENV DATABASE_URL=${DATABASE_URL}
-ENV REDIS_URL=${REDIS_URL}
-ENV WORKER_MODE=${WORKER_MODE}
-ENV COOKIE_SECRET=${COOKIE_SECRET}
-ENV JWT_SECRET=${JWT_SECRET}
-ENV STORE_CORS=${STORE_CORS}
-ENV ADMIN_CORS=${ADMIN_CORS}
-ENV AUTH_CORS=${AUTH_CORS}
-ENV PORT=${PORT}
-
-# Arbeitsverzeichnis setzen
-WORKDIR /app/backend
-
-# System-Dependencies installieren
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Corepack aktivieren für Yarn 4.4.0
-RUN corepack enable
-
-# Package.json und Yarn-Files kopieren
-COPY backend/package.json backend/yarn.lock ./ 
-COPY backend/.yarnrc.yml ./
+RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
+ && echo "REDIS_URL=${REDIS_URL}" >> .env \
+ && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
+ && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
+ && echo "STORE_CORS=${STORE_CORS}" >> .env \
+ && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
+ && echo "AUTH_CORS=${AUTH_CORS}" >> .env \
+ && echo "PORT=${PORT}" >> .env
 
 # Dependencies installieren
-RUN yarn install --network-timeout 300000 && yarn cache clean
+RUN yarn install --network-timeout 300000 \
+ && yarn cache clean
 
-# Source Code kopieren
+# Backend Source kopieren
 COPY backend/ ./
 
-# Optional: .env für Build-Time erzeugen (falls Medusa Build Variablen braucht)
-RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
-    && echo "REDIS_URL=${REDIS_URL}" >> .env \
-    && echo "WORKER_MODE=${WORKER_MODE}" >> .env \
-    && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
-    && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
-    && echo "STORE_CORS=${STORE_CORS}" >> .env \
-    && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
-    && echo "AUTH_CORS=${AUTH_CORS}" >> .env \
-    && echo "PORT=${PORT}" >> .env
-
-# Medusa Backend builden
+# Build Medusa
 RUN yarn medusa build
 
-# -------------------------------
+# --------------------
 # Production Stage
-# -------------------------------
+# --------------------
 FROM node:20-slim AS production
 
-# Arbeitsverzeichnis
-WORKDIR /app/backend
+WORKDIR /app
 
-# System-Dependencies für Production
-RUN apt-get update && apt-get install -y curl \
-    && rm -rf /var/lib/apt/lists/*
+# System dependencies
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Corepack aktivieren
 RUN corepack enable
 
-# Copy built app vom Builder
-COPY --from=builder /app/backend ./ 
+# Alles aus Builder kopieren (inkl. build output)
+COPY --from=builder /app ./
 
-# Environment Variables für Production (falls nicht über .env gesetzt)
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3000"
 
-# Port exposen
 EXPOSE 9000
 
-# Entrypoint Script
-COPY entrypoint.sh /app/backend/entrypoint.sh
-RUN chmod +x /app/backend/entrypoint.sh
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 CMD ["./entrypoint.sh"]
 
-# Health Check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:9000/health || exit 1
