@@ -25,3 +25,12 @@ build
 !.yarn/versions
 
 .medusa
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# But NOT .env.example
+!.env.example

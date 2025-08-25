@@ -1,54 +1,100 @@
 version: "3.9"
 
 services:
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
-    volumes:
-      - medusa-db-data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7.2
-    ports:
-      - "6380:6380"
-
   medusa:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        DATABASE_URL: ${DATABASEURL}
-        REDIS_URL: ${REDISURL}
-        WORKER_MODE: ${WORKER_MODE}
-        COOKIE_SECRET: ${COOKIE_SECRET}
-        JWT_SECRET: ${JWT_SECRET}
-        STORE_CORS: ${STORE_CORS}
-        ADMIN_CORS: ${ADMIN_CORS}
-        AUTH_CORS: ${AUTH_CORS}
-        PORT: ${PORT}
-    environment:
-      - DATABASE_URL=${DATABASEURL}
-      - REDIS_URL=${REDISURL}
-      - WORKER_MODE=${WORKER_MODE}
-      - COOKIE_SECRET=${COOKIE_SECRET}
-      - JWT_SECRET=${JWT_SECRET}
-      - STORE_CORS=${STORE_CORS}
-      - ADMIN_CORS=${ADMIN_CORS}
-      - AUTH_CORS=${AUTH_CORS}
-      - PORT=${PORT}
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
-    ports:
-      - "${PORT}:9000"
-    depends_on:
-      - db
-      - redis
-    command: ["./entrypoint.sh"]
+        # Build arguments - passed from Coolify build variables
+        NODE_ENV: ${NODE_ENV:-production}
+    image: medusa-b2b:latest
+    container_name: medusa-b2b-app
     restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "${PORT:-9000}:9000"
+    
+    # Environment variables - all pulled from Coolify
+    environment:
+      # Database Configuration
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASEURL: ${DATABASEURL}
+      
+      # PostgreSQL SSL Disable
+      PGSSLMODE: ${PGSSLMODE:-disable}
+      PGSSL: ${PGSSL:-0}
+      NODE_TLS_REJECT_UNAUTHORIZED: ${NODE_TLS_REJECT_UNAUTHORIZED:-0}
+      PGSSLCERT: ${PGSSLCERT:-}
+      PGSSLKEY: ${PGSSLKEY:-}
+      PGSSLROOTCERT: ${PGSSLROOTCERT:-}
+      
+      # Redis Configuration
+      REDIS_URL: ${REDIS_URL}
+      REDISURL: ${REDISURL}
+      CACHE_REDIS_URL: ${CACHE_REDIS_URL}
+      
+      # Application Configuration
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-9000}
+      WORKER_MODE: ${WORKER_MODE:-shared}
+      
+      # Security
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      
+      # CORS Configuration
+      STORE_CORS: ${STORE_CORS}
+      ADMIN_CORS: ${ADMIN_CORS}
+      AUTH_CORS: ${AUTH_CORS}
+      
+      # Admin Configuration
+      DISABLE_ADMIN: ${DISABLE_ADMIN:-false}
+      MEDUSA_ADMIN_ONBOARDING_TYPE: ${MEDUSA_ADMIN_ONBOARDING_TYPE:-default}
+    
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 180s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Volumes for persistent data
+    volumes:
+      - medusa-uploads:/app/uploads
+      - medusa-data:/app/.medusa
+    
+    # Network configuration
+    networks:
+      - medusa-network
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+# Network definition
+networks:
+  medusa-network:
+    driver: bridge
+
+# Volume definitions
 volumes:
-  medusa-db-data:
+  medusa-uploads:
+    driver: local
+  medusa-data:
+    driver: local
