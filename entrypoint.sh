@@ -1,9 +1,12 @@
 #!/bin/sh
 set -e
 
-# Wait until DB is ready (optional, if using something like pg_isready)
-echo "Waiting for database..."
-# Example: while ! pg_isready -h $DB_HOST -p $DB_PORT; do sleep 1; done
+# Env-Datei laden (Production)
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+echo "Using DATABASE_URL=$DATABASE_URL"
 
 # Create DB if it doesn’t exist
 yarn medusa db:create || true
