@@ -27,7 +27,7 @@ ENV PORT=${PORT}
 WORKDIR /app
 
 # System-Dependencies installieren
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
@@ -70,7 +70,6 @@ WORKDIR /app/backend
 
 # System-Dependencies für Production installieren
 RUN apt-get update && apt-get install -y \
-    python3 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -96,16 +95,15 @@ ENV NODE_OPTIONS="--max-old-space-size=3200"
 # Port 9000 für MedusaJS exposieren
 EXPOSE 9000
 
-# Health Check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:9000/health || exit 1
-
-
 # Run database migrations & seed data
 COPY entrypoint.sh /app/backend/entrypoint.sh
 RUN chmod +x /app/backend/entrypoint.sh
 CMD ["./entrypoint.sh"]
 
 
-# MedusaJS starten
-CMD ["yarn", "medusa", "start"]
+
+
+# Health Check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:9000/health || exit 1
+
