@@ -83,6 +83,3 @@ EXPOSE 9000
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 CMD ["./entrypoint.sh"]
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:9000/health || exit 1
