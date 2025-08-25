@@ -69,6 +69,9 @@ COPY --from=builder /app/backend/node_modules ./node_modules
 
 # Environment Variables für Production
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=3200"
+
+ENV REDIS_URL=${REDIS_URL}
 
 # Port 9000 für MedusaJS exposieren
 EXPOSE 9000
