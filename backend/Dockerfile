@@ -4,17 +4,25 @@
 # Build Stage
 FROM node:20-slim AS builder
 
+ARG DATABASE_URL
+ARG REDIS_URL
+ARG WORKER_MODE
 ARG COOKIE_SECRET
 ARG JWT_SECRET
 ARG STORE_CORS
 ARG ADMIN_CORS
 ARG AUTH_CORS
-ARG DISABLE_ADMIN
-ARG WORKER_MODE
 ARG PORT
-ARG DATABASE_URL
-ARG REDIS_URL
-ARG BACKEND_URL
+
+ENV DATABASE_URL=${DATABASE_URL}
+ENV REDIS_URL=${REDIS_URL}
+ENV COOKIE_SECRET=${COOKIE_SECRET}
+ENV JWT_SECRET=${JWT_SECRET}
+ENV STORE_CORS=${STORE_CORS}
+ENV ADMIN_CORS=${ADMIN_CORS}
+ENV AUTH_CORS=${AUTH_CORS}
+ENV PORT=${PORT}
+
 
 RUN echo "${PORT}"
 
@@ -39,7 +47,8 @@ COPY backend/.yarnrc.yml ./backend/
 WORKDIR /app/backend
 
 # Dependencies installieren mit Yarn 4 (Lockfile-Updates erlauben)
-RUN yarn install --network-timeout 300000
+RUN yarn install --network-timeout 300000 \
+    && yarn cache clean
 
 # Source Code kopieren
 COPY backend/ ./
