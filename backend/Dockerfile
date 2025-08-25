@@ -4,6 +4,20 @@
 # Build Stage
 FROM node:20-slim AS builder
 
+ARG COOKIE_SECRET
+ARG JWT_SECRET
+ARG STORE_CORS
+ARG ADMIN_CORS
+ARG AUTH_CORS
+ARG DISABLE_ADMIN
+ARG WORKER_MODE
+ARG PORT
+ARG DATABASE_URL
+ARG REDIS_URL
+ARG BACKEND_URL
+
+RUN echo "${PORT}"
+
 # Arbeitsverzeichnis setzen
 WORKDIR /app
 
@@ -71,14 +85,19 @@ COPY --from=builder /app/backend/node_modules ./node_modules
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3200"
 
-ENV REDIS_URL=${REDIS_URL}
-
 # Port 9000 für MedusaJS exposieren
 EXPOSE 9000
 
 # Health Check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:9000/health || exit 1
+
+
+# Run database migrations & seed data
+RUN yarn medusa db:create || true
+RUN yarn medusa db:migrate
+RUN yarn run seed || true
+
 
 # MedusaJS starten
 CMD ["yarn", "medusa", "start"]
