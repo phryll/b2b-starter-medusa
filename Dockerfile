@@ -13,12 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Corepack aktivieren
 RUN corepack enable
 
-# Kopiere nur package.json + yarn.lock + .yarnrc.yml
-COPY backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
-
-# .env erstellen
+# Alle ARGs deklarieren
 ARG DATABASE_URL
 ARG REDIS_URL
+ARG WORKER_MODE
 ARG COOKIE_SECRET
 ARG JWT_SECRET
 ARG STORE_CORS
@@ -26,8 +24,13 @@ ARG ADMIN_CORS
 ARG AUTH_CORS
 ARG PORT
 
+# Kopiere nur package.json + yarn.lock + .yarnrc.yml
+COPY backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
+
+# .env erstellen mit allen ARGs
 RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
  && echo "REDIS_URL=${REDIS_URL}" >> .env \
+ && echo "WORKER_MODE=${WORKER_MODE}" >> .env \
  && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
  && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
  && echo "STORE_CORS=${STORE_CORS}" >> .env \
@@ -57,9 +60,21 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable
 
-# Alles aus Builder kopieren (inkl. build output)
+# Optional: alle ARGs auch in Production definieren, falls sie gebraucht werden
+ARG DATABASE_URL
+ARG REDIS_URL
+ARG WORKER_MODE
+ARG COOKIE_SECRET
+ARG JWT_SECRET
+ARG STORE_CORS
+ARG ADMIN_CORS
+ARG AUTH_CORS
+ARG PORT
+
+# Alles aus Builder kopieren (inkl. build output und .env)
 COPY --from=builder /app ./
 
+# Environment Variables setzen
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=3000"
 
