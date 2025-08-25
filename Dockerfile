@@ -1,72 +1,64 @@
-# Dockerfile für MedusaJS B2B Starter - Optimiert für CPX21 (4GB RAM, 3 vCPU)
-# Multi-stage build für optimale Image-Größe
-
-# Build Stage
+# === Build Stage ===
 FROM node:20-slim AS builder
 
-# Arbeitsverzeichnis setzen
-WORKDIR /app
+WORKDIR /app/backend
 
-# System-Dependencies installieren
+# System-Dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
-    && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 
-# Corepack aktivieren für Yarn 4.4.0
+# Corepack für Yarn 4 aktivieren
 RUN corepack enable
 
-# Package.json und Yarn-Files kopieren
-COPY backend/package.json backend/yarn.lock ./backend/
-COPY backend/.yarnrc.yml ./backend/
+# Abhängigkeiten kopieren
+COPY backend/package.json backend/yarn.lock ./ 
+COPY backend/.yarnrc.yml ./
 
-# Working Directory ins backend wechseln
-WORKDIR /app/backend
+# Install (kein Cache möglich, wenn Datei geändert)
+RUN yarn install --immutable --network-timeout 300000
 
-# Dependencies installieren mit Yarn 4 (Lockfile-Updates erlauben)
-RUN yarn install --network-timeout 300000
-
-# Source Code kopieren
+# Projekt-Dateien kopieren
 COPY backend/ ./
 
-# MedusaJS Backend builden
+# TS-Konfiguration kopieren (falls vorhanden)
+COPY backend/tsconfig.json ./
+
+# Build
 RUN yarn medusa build
 
-# Production Stage
+# === Production Stage ===
 FROM node:20-slim AS production
 
-# Arbeitsverzeichnis setzen
 WORKDIR /app/backend
 
-# System-Dependencies für Production installieren
+# Systemtools für Healthcheck
 RUN apt-get update && apt-get install -y \
     python3 \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 
-# Corepack aktivieren
 RUN corepack enable
 
-# Built application von builder stage kopieren
+# Kopieren aus builder
 COPY --from=builder /app/backend/package.json ./
 COPY --from=builder /app/backend/yarn.lock ./
 COPY --from=builder /app/backend/.yarnrc.yml ./
+COPY --from=builder /app/backend/tsconfig.json ./
 COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend/.medusa ./.medusa
 COPY --from=builder /app/backend/src ./src
 COPY --from=builder /app/backend/medusa-config.* ./
 
-# Environment Variables für Production
+# Environment
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 
-# Port 9000 für MedusaJS exposieren
 EXPOSE 9000
 
-# Health Check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:9000/health || exit 1
+  CMD curl -f http://localhost:9000/health || exit 1
 
-# MedusaJS starten
 CMD ["yarn", "medusa", "start"]
