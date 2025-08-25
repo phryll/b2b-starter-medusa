@@ -1,0 +1,19 @@
+# nixpacks.toml for MedusaJS B2B Starter Backend
+
+providers = ["node"]
+
+[variables]
+NODE_ENV = "production"
+NIXPACKS_NODE_VERSION = "20"
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "yarn"]
+
+[phases.install]
+cmds = ["cd backend && yarn install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["cd backend && yarn build"]
+
+[start]
+cmd = "cd backend && yarn start"
