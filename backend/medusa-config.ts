@@ -10,15 +10,6 @@ module.exports = defineConfig({
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
     workerMode: process.env.WORKER_MODE as "shared" | "worker" | "server",
-    database: {
-      ssl: false,
-      rejectUnauthorized: false,
-      extra: {
-        ssl: false,
-        rejectUnauthorized: false,
-        sslmode: "disable"
-      }
-    },
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,

@@ -51,8 +51,19 @@ echo "Testing database connection..."
 if node test-db-connection.js; then
   echo "✅ Database connection test passed"
 else
-  echo "❌ Database connection test failed - exiting"
-  exit 1
+  echo "❌ Database connection test failed - trying alternative approach..."
+  
+  # Try to force SSL disable in the connection string even more aggressively
+  export DATABASE_URL=$(echo "$DATABASE_URL" | sed 's/sslmode=disable/sslmode=disable&ssl=false&rejectUnauthorized=false&sslmode=disable/g')
+  echo "Super-enhanced DATABASE_URL=$DATABASE_URL"
+  
+  # Test again
+  if node test-db-connection.js; then
+    echo "✅ Database connection test passed with enhanced settings"
+  else
+    echo "❌ Database connection test still failed - exiting"
+    exit 1
+  fi
 fi
 
 # Skip database creation - just run migrations
