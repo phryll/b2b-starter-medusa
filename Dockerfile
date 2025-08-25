@@ -24,16 +24,16 @@ ENV AUTH_CORS=${AUTH_CORS}
 ENV PORT=${PORT}
 
 # Create .env file with all necessary variables
-RUN echo "DATABASE_URL=$DATABASE_URL" > .env \
-    && echo "REDIS_URL=$REDIS_URL" >> .env \
+RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
+    && echo "REDIS_URL=${REDIS_URL}" >> .env \
     && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
     && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
     && echo "STORE_CORS=${STORE_CORS}" >> .env \
     && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
     && echo "AUTH_CORS=${AUTH_CORS}" >> .env
 
-RUN echo "DATABASE_URL=$DATABASE_URL" \
-    && echo "REDIS_URL=$REDIS_URL"
+RUN echo "DATABASE_URL=${DATABASE_URL}" \
+    && echo "REDIS_URL=${REDIS_URL}"
 
 
 RUN echo "${PORT}"
@@ -92,14 +92,7 @@ COPY --from=builder /app/backend/.medusa ./.medusa
 COPY --from=builder /app/backend/src ./src
 COPY --from=builder /app/backend/medusa-config.* ./
 COPY --from=builder /app/backend/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/backend/.medusa ./.medusa
-COPY --from=builder /app/backend/src ./src
-COPY --from=builder /app/backend/medusa-config.* ./
-COPY --from=builder /app/backend/package.json ./
-COPY --from=builder /app/backend/yarn.lock ./
-COPY --from=builder /app/backend/.yarnrc.yml ./
-COPY --from=builder /app/backend/node_modules ./node_modules
-
+COPY --from=builder /app/backend/.env ./
 
 
 # Environment Variables für Production
@@ -115,9 +108,9 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
 
 
 # Run database migrations & seed data
-RUN yarn medusa db:create || true
-RUN yarn medusa db:migrate
-RUN yarn run seed || true
+COPY entrypoint.sh /app/backend/entrypoint.sh
+RUN chmod +x /app/backend/entrypoint.sh
+CMD ["./entrypoint.sh"]
 
 
 # MedusaJS starten
