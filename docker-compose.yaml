@@ -4,13 +4,13 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     volumes:
       - medusa-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,30 +30,30 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        DATABASE_URL: ${DATABASE_URL}
-        REDIS_URL: ${REDIS_URL}
-        WORKER_MODE: ${WORKER_MODE:-server}
-        COOKIE_SECRET: ${COOKIE_SECRET}
-        JWT_SECRET: ${JWT_SECRET}
-        STORE_CORS: ${STORE_CORS}
-        ADMIN_CORS: ${ADMIN_CORS}
-        AUTH_CORS: ${AUTH_CORS}
-        PORT: ${PORT:-9000}
+        DATABASE_URL: postgres://postgres:postgres@db:5432/postgres
+        REDIS_URL: redis://redis:6380/0
+        WORKER_MODE: server
+        COOKIE_SECRET: supersecret
+        JWT_SECRET: 4870377b462a73ce988c2d52b713b08b
+        STORE_CORS: "*"
+        ADMIN_CORS: "*"
+        AUTH_CORS: "*"
+        PORT: 9000
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - WORKER_MODE=${WORKER_MODE:-server}
-      - COOKIE_SECRET=${COOKIE_SECRET}
-      - JWT_SECRET=${JWT_SECRET}
-      - STORE_CORS=${STORE_CORS}
-      - ADMIN_CORS=${ADMIN_CORS}
-      - AUTH_CORS=${AUTH_CORS}
-      - PORT=${PORT:-9000}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - REDIS_URL=redis://redis:6380/0
+      - WORKER_MODE=server
+      - COOKIE_SECRET=supersecret
+      - JWT_SECRET=4870377b462a73ce988c2d52b713b08b
+      - STORE_CORS=*
+      - ADMIN_CORS=*
+      - AUTH_CORS=*
+      - PORT=9000
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
     ports:
-      - "${PORT:-9000}:9000"
+      - "9000:9000"
     depends_on:
       db:
         condition: service_healthy
