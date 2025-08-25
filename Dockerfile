@@ -79,4 +79,8 @@ EXPOSE 9000
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
+# Health check - check if medusa process is running
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD ps aux | grep 'medusa start' | grep -v grep || exit 1
+
 CMD ["./entrypoint.sh"]
