@@ -63,17 +63,26 @@ ENV ADMIN_CORS=${ADMIN_CORS}
 ENV AUTH_CORS=${AUTH_CORS}
 ENV PORT=${PORT:-9000}
 
-# Force PostgreSQL SSL disable at container level
+# Force PostgreSQL SSL disable at container level - MULTIPLE LAYERS
 ENV PGSSLMODE=disable
 ENV PGSSLCERT=""
 ENV PGSSLKEY=""
 ENV PGSSLROOTCERT=""
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+ENV PGSSL=0
+ENV PGSSLMODE=disable
+ENV PGSSLCERT=""
+ENV PGSSLKEY=""
+ENV PGSSLROOTCERT=""
+ENV PGSSLMODE=disable
+ENV PGSSLCERT=""
+ENV PGSSLKEY=""
+ENV PGSSLROOTCERT=""
 
 # Copy everything from builder stage
 COPY --from=builder /app ./
 
-# Create .env file for compatibility
+# Create .env file for compatibility with comprehensive SSL disable
 RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
  && echo "REDIS_URL=${REDIS_URL}" >> .env \
  && echo "WORKER_MODE=${WORKER_MODE:-server}" >> .env \
@@ -84,7 +93,11 @@ RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
  && echo "AUTH_CORS=${AUTH_CORS}" >> .env \
  && echo "PORT=${PORT:-9000}" >> .env \
  && echo "PGSSLMODE=disable" >> .env \
- && echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> .env
+ && echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> .env \
+ && echo "PGSSL=0" >> .env \
+ && echo "PGSSLCERT=" >> .env \
+ && echo "PGSSLKEY=" >> .env \
+ && echo "PGSSLROOTCERT=" >> .env
 
 EXPOSE 9000
 
