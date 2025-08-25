@@ -22,9 +22,7 @@ nixLibs = ["openssl"]
 [phases.install]
 # Ins Backend-Verzeichnis wechseln und Dependencies installieren
 cmds = [
-    "cd backend",
-    # Dependencies mit frozen lockfile installieren
-    "yarn install --frozen-lockfile --network-timeout 300000"
+    "cd backend && yarn install --frozen-lockfile --network-timeout 300000"
 ]
 # Cache-Verzeichnisse für optimale Build-Performance
 cacheDirectories = [
@@ -35,9 +33,7 @@ cacheDirectories = [
 [phases.build]
 # MedusaJS Backend builden
 cmds = [
-    "cd backend",
-    # Production-Build mit Medusa CLI
-    "yarn medusa build"
+    "cd backend && yarn medusa build"
 ]
 # Build-Cache für wiederholte Deployments
 cacheDirectories = [
