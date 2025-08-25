@@ -4,13 +4,13 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     volumes:
       - medusa-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,7 +32,7 @@ services:
       args:
         DATABASE_URL: ${DATABASE_URL}
         REDIS_URL: ${REDIS_URL}
-        WORKER_MODE: ${WORKER_MODE:-false}
+        WORKER_MODE: ${WORKER_MODE:-server}
         COOKIE_SECRET: ${COOKIE_SECRET}
         JWT_SECRET: ${JWT_SECRET}
         STORE_CORS: ${STORE_CORS}
@@ -42,13 +42,16 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
-      - WORKER_MODE=${WORKER_MODE:-false}
+      - WORKER_MODE=${WORKER_MODE:-server}
       - COOKIE_SECRET=${COOKIE_SECRET}
       - JWT_SECRET=${JWT_SECRET}
       - STORE_CORS=${STORE_CORS}
       - ADMIN_CORS=${ADMIN_CORS}
       - AUTH_CORS=${AUTH_CORS}
       - PORT=${PORT:-9000}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
     ports:
       - "${PORT:-9000}:9000"
     depends_on:
@@ -63,7 +66,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
 
 volumes:
   medusa-db-data:

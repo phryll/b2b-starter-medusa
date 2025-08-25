@@ -52,7 +52,7 @@ ARG PORT
 # Set environment variables
 ENV DATABASE_URL=${DATABASE_URL}
 ENV REDIS_URL=${REDIS_URL}
-ENV WORKER_MODE=${WORKER_MODE}
+ENV WORKER_MODE=${WORKER_MODE:-server}
 ENV COOKIE_SECRET=${COOKIE_SECRET}
 ENV JWT_SECRET=${JWT_SECRET}
 ENV STORE_CORS=${STORE_CORS}
@@ -66,7 +66,7 @@ COPY --from=builder /app ./
 # Create .env file for compatibility
 RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
  && echo "REDIS_URL=${REDIS_URL}" >> .env \
- && echo "WORKER_MODE=${WORKER_MODE}" >> .env \
+ && echo "WORKER_MODE=${WORKER_MODE:-server}" >> .env \
  && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
  && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
  && echo "STORE_CORS=${STORE_CORS}" >> .env \
@@ -79,8 +79,8 @@ EXPOSE 9000
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Health check with longer start period
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
   CMD curl -f http://localhost:9000/health || exit 1
 
 CMD ["./entrypoint.sh"]
