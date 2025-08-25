@@ -8,11 +8,11 @@ loadEnv(process.env.NODE_ENV!, process.cwd());
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    redisUrl: REDIS_URL,
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
       authCors: process.env.AUTH_CORS!,
-      redisUrl: REDIS_URL,
       jwtSecret: process.env.JWT_SECRET || "4870377b462a73ce988c2d52b713b08b",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
