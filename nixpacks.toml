@@ -20,20 +20,20 @@ nixPkgs = ["nodejs_20", "yarn"]
 nixLibs = ["openssl"]
 
 [phases.install]
-# Ins Backend-Verzeichnis wechseln und Dependencies installieren
+# Corepack aktivieren und Dependencies installieren 
 cmds = [
-    "cd backend && yarn install --frozen-lockfile --network-timeout 300000"
+    "cd backend && corepack enable && yarn install --frozen-lockfile --network-timeout 300000"
 ]
-# Cache-Verzeichnisse für optimale Build-Performance
+# Cache-Verzeichnisse für Yarn 4 (Modern Yarn)
 cacheDirectories = [
     "backend/node_modules",
-    "/usr/local/share/.cache/yarn/v6"
+    "backend/.yarn/cache"
 ]
 
 [phases.build]
-# MedusaJS Backend builden
+# MedusaJS Backend builden mit Corepack
 cmds = [
-    "cd backend && yarn medusa build"
+    "cd backend && corepack enable && yarn medusa build"
 ]
 # Build-Cache für wiederholte Deployments
 cacheDirectories = [
@@ -42,6 +42,6 @@ cacheDirectories = [
 ]
 
 [start]
-# Production-Start mit Medusa CLI
+# Production-Start mit Corepack und Medusa CLI
 # Port 9000 ist der Standard für MedusaJS
-cmd = "cd backend && yarn medusa start"
+cmd = "cd backend && corepack enable && yarn medusa start"
