@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: medusa
+      POSTGRES_DB: medusadb
+    volumes:
+      - medusa-db-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  medusa:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        DATABASE_URL: ${DATABASE_URL}
+        REDIS_URL: ${REDIS_URL}
+        COOKIE_SECRET: ${COOKIE_SECRET}
+        JWT_SECRET: ${JWT_SECRET}
+        STORE_CORS: ${STORE_CORS}
+        ADMIN_CORS: ${ADMIN_CORS}
+        AUTH_CORS: ${AUTH_CORS}
+        PORT: ${PORT}
+    env_file:
+      - .env
+    ports:
+      - "${PORT}:${PORT}"
+    depends_on:
+      - db
+      - redis
+    command: ["./entrypoint.sh"]
+    restart: unless-stopped
+
+volumes:
+  medusa-db-data:
