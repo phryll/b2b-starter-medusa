@@ -20,35 +20,41 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        DATABASE_URL: postgres://postgres:postgres@db:5432/postgres
-        REDIS_URL: redis://redis:6380/0
-        WORKER_MODE: server
-        COOKIE_SECRET: supersecret
-        JWT_SECRET: 4870377b462a73ce988c2d52b713b08b
-        STORE_CORS: "*"
-        ADMIN_CORS: "*"
-        AUTH_CORS: "*"
-        PORT: 9000
+        DATABASE_URL: ${DATABASEURL}
+        REDIS_URL: ${REDISURL}
+        WORKER_MODE: ${WORKER_MODE}
+        COOKIE_SECRET: ${COOKIE_SECRET}
+        JWT_SECRET: ${JWT_SECRET}
+        STORE_CORS: ${STORE_CORS}
+        ADMIN_CORS: ${ADMIN_CORS}
+        AUTH_CORS: ${AUTH_CORS}
+        PORT: ${PORT}
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
-      - REDIS_URL=redis://redis:6380/0
-      - WORKER_MODE=server
-      - COOKIE_SECRET=supersecret
-      - JWT_SECRET=4870377b462a73ce988c2d52b713b08b
-      - STORE_CORS=*
-      - ADMIN_CORS=*
-      - AUTH_CORS=*
-      - PORT=9000
+      - DATABASE_URL=${DATABASEURL}
+      - REDIS_URL=${REDISURL}
+      - WORKER_MODE=${WORKER_MODE}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - STORE_CORS=${STORE_CORS}
+      - ADMIN_CORS=${ADMIN_CORS}
+      - AUTH_CORS=${AUTH_CORS}
+      - PORT=${PORT}
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=postgres
     ports:
-      - "9000:9000"
+      - "${PORT}:9000"
     depends_on:
       - db
       - redis
     command: ["./entrypoint.sh"]
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${PORT:-9000}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
 
 volumes:
   medusa-db-data:
