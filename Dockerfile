@@ -1,7 +1,7 @@
 # --------------------
 # Build Stage
 # --------------------
-FROM node:20-slim AS builder
+FROM node:23-slim AS builder
 
 WORKDIR /app
 
@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Corepack aktivieren
 RUN corepack enable
 
+FROM node:23-slim
 # Alle ARGs deklarieren
 ARG DATABASE_URL
 ARG REDIS_URL
@@ -73,10 +74,6 @@ ARG PORT
 
 # Alles aus Builder kopieren (inkl. build output und .env)
 COPY --from=builder /app ./
-
-# Environment Variables setzen
-ENV NODE_ENV=production
-ENV NODE_OPTIONS="--max-old-space-size=3000"
 
 EXPOSE 9000
 
