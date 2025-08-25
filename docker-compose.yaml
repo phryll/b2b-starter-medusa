@@ -49,13 +49,13 @@ services:
       - redis
     command: ["./entrypoint.sh"]
     restart: unless-stopped
-    # Health check using Node.js command that's guaranteed to be available
+    # Simplified health check with minimal start period
     healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+      start_period: 5s
 
 volumes:
   medusa-db-data:
