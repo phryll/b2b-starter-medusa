@@ -52,7 +52,7 @@ RUN yarn medusa build
 # --------------------
 # Production Stage
 # --------------------
-FROM node:20-slim AS production
+FROM node:23-slim AS production
 
 WORKDIR /app
 
@@ -71,6 +71,17 @@ ARG STORE_CORS
 ARG ADMIN_CORS
 ARG AUTH_CORS
 ARG PORT
+
+ENV DATABASE_URL=${DATABASE_URL}
+ENV REDIS_URL=${REDIS_URL}
+ENV WORKER_MODE=${WORKER_MODE}
+ENV COOKIE_SECRET=${COOKIE_SECRET}
+ENV JWT_SECRET=${JWT_SECRET}
+ENV STORE_CORS=${STORE_CORS}
+ENV ADMIN_CORS=${ADMIN_CORS}
+ENV AUTH_CORS=${AUTH_CORS}
+ENV PORT=${PORT}
+
 
 # Alles aus Builder kopieren (inkl. build output und .env)
 COPY --from=builder /app ./
