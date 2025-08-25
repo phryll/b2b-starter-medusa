@@ -9,12 +9,9 @@ fi
 echo "Using DATABASE_URL=$DATABASE_URL"
 echo "Using REDIS_URL=$REDIS_URL"
 
-# Wait for database to be ready with non-interactive approach
-echo "Waiting for database to be ready..."
-until yarn medusa db:create --database-name postgres 2>/dev/null; do
-  echo "Database not ready, waiting..."
-  sleep 5
-done
+# Try to create database (will fail if it exists, which is fine)
+echo "Checking database connection..."
+yarn medusa db:create 2>/dev/null || echo "Database may already exist, continuing..."
 
 # Run migrations
 echo "Running database migrations..."
