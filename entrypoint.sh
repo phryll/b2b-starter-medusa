@@ -7,15 +7,23 @@ if [ -f .env ]; then
 fi
 
 echo "Using DATABASE_URL=$DATABASE_URL"
+echo "Using REDIS_URL=$REDIS_URL"
 
-# Create DB if it doesn’t exist
-yarn medusa db:create || true
+# Wait for database to be ready
+echo "Waiting for database to be ready..."
+until yarn medusa db:create 2>/dev/null; do
+  echo "Database not ready, waiting..."
+  sleep 2
+done
 
 # Run migrations
+echo "Running database migrations..."
 yarn medusa db:migrate
 
 # Seed initial data
+echo "Seeding initial data..."
 yarn run seed || true
 
 # Start Medusa server
-yarn medusa start
+echo "Starting Medusa server..."
+exec yarn medusa start

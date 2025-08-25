@@ -9,34 +9,61 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - medusa-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7.2
     ports:
       - "6380:6380"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   medusa:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
       args:
         DATABASE_URL: ${DATABASE_URL}
         REDIS_URL: ${REDIS_URL}
+        WORKER_MODE: ${WORKER_MODE:-false}
         COOKIE_SECRET: ${COOKIE_SECRET}
         JWT_SECRET: ${JWT_SECRET}
         STORE_CORS: ${STORE_CORS}
         ADMIN_CORS: ${ADMIN_CORS}
         AUTH_CORS: ${AUTH_CORS}
-        PORT: ${PORT}
-    env_file:
-      - .env
+        PORT: ${PORT:-9000}
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - WORKER_MODE=${WORKER_MODE:-false}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - STORE_CORS=${STORE_CORS}
+      - ADMIN_CORS=${ADMIN_CORS}
+      - AUTH_CORS=${AUTH_CORS}
+      - PORT=${PORT:-9000}
     ports:
-      - "${PORT}:${PORT}"
+      - "${PORT:-9000}:9000"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     command: ["./entrypoint.sh"]
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   medusa-db-data:
