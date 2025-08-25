@@ -16,8 +16,10 @@ export PGSSLKEY=""
 export PGSSLROOTCERT=""
 
 # Ensure DATABASE_URL has proper SSL disable parameters
-if [[ "$DATABASE_URL" != *"sslmode=disable"* ]]; then
-  if [[ "$DATABASE_URL" == *"?"* ]]; then
+if echo "$DATABASE_URL" | grep -q "sslmode=disable"; then
+  echo "DATABASE_URL already has sslmode=disable"
+else
+  if echo "$DATABASE_URL" | grep -q "?"; then
     export DATABASE_URL="${DATABASE_URL}&sslmode=disable"
   else
     export DATABASE_URL="${DATABASE_URL}?sslmode=disable"

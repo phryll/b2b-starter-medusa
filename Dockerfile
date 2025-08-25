@@ -63,6 +63,13 @@ ENV ADMIN_CORS=${ADMIN_CORS}
 ENV AUTH_CORS=${AUTH_CORS}
 ENV PORT=${PORT:-9000}
 
+# Force PostgreSQL SSL disable at container level
+ENV PGSSLMODE=disable
+ENV PGSSLCERT=""
+ENV PGSSLKEY=""
+ENV PGSSLROOTCERT=""
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+
 # Copy everything from builder stage
 COPY --from=builder /app ./
 
@@ -75,7 +82,9 @@ RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
  && echo "STORE_CORS=${STORE_CORS}" >> .env \
  && echo "ADMIN_CORS=${ADMIN_CORS}" >> .env \
  && echo "AUTH_CORS=${AUTH_CORS}" >> .env \
- && echo "PORT=${PORT:-9000}" >> .env
+ && echo "PORT=${PORT:-9000}" >> .env \
+ && echo "PGSSLMODE=disable" >> .env \
+ && echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> .env
 
 EXPOSE 9000
 
