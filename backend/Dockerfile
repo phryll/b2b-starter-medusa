@@ -23,17 +23,9 @@ ENV ADMIN_CORS=${ADMIN_CORS}
 ENV AUTH_CORS=${AUTH_CORS}
 ENV PORT=${PORT}
 
-ENV DATABASE_URL=${DATABASE_URL}
-ENV REDIS_URL=${REDIS_URL}
-ENV COOKIE_SECRET=${COOKIE_SECRET}
-ENV JWT_SECRET=${JWT_SECRET}
-ENV STORE_CORS=${STORE_CORS}
-ENV ADMIN_CORS=${ADMIN_CORS}
-ENV AUTH_CORS=${AUTH_CORS}
-
 # Create .env file with all necessary variables
-RUN echo "DATABASE_URL=${DATABASE_URL}" > .env \
-    && echo "REDIS_URL=${REDIS_URL}" >> .env \
+RUN echo "DATABASE_URL=$DATABASE_URL" > .env \
+    && echo "REDIS_URL=$REDIS_URL" >> .env \
     && echo "COOKIE_SECRET=${COOKIE_SECRET}" >> .env \
     && echo "JWT_SECRET=${JWT_SECRET}" >> .env \
     && echo "STORE_CORS=${STORE_CORS}" >> .env \
