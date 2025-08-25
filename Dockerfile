@@ -75,6 +75,7 @@ ARG PORT
 # Alles aus Builder kopieren (inkl. build output und .env)
 COPY --from=builder /app ./
 
+
 EXPOSE 9000
 
 COPY entrypoint.sh ./entrypoint.sh

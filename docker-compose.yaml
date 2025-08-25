@@ -11,9 +11,9 @@ services:
       - medusa-db-data:/var/lib/postgresql/data
 
   redis:
-    image: redis:7
+    image: redis:7.2
     ports:
-      - "6379:6379"
+      - "6380:6380"
 
   medusa:
     build:
