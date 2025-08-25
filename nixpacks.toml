@@ -8,12 +8,10 @@ providers = ["node"]
 NODE_ENV = "production"
 # Node.js 20 LTS für beste Kompatibilität und Performance
 NIXPACKS_NODE_VERSION = "20"
-# Memory-Optimierung für CPX21 (4GB RAM) - großzügiger mit mehr Speicher
-NODE_OPTIONS = "--max-old-space-size=2048 --optimize-for-size"
+# Memory-Optimierung für CPX21 (4GB RAM)
+NODE_OPTIONS = "--max-old-space-size=2048"
 # NPM-Konfiguration für Production-Builds
 NPM_CONFIG_PRODUCTION = "false"
-# Yarn-Optimierungen
-YARN_CACHE_FOLDER = "/tmp/.yarn-cache"
 
 [phases.setup]
 # Node.js 20 und Yarn installieren
@@ -25,15 +23,12 @@ nixLibs = ["openssl"]
 # Ins Backend-Verzeichnis wechseln und Dependencies installieren
 cmds = [
     "cd backend",
-    # Yarn-Cache für bessere Performance konfigurieren
-    "yarn config set cache-folder $YARN_CACHE_FOLDER",
     # Dependencies mit frozen lockfile installieren
-    "yarn install --frozen-lockfile --network-timeout 300000 --prefer-offline"
+    "yarn install --frozen-lockfile --network-timeout 300000"
 ]
 # Cache-Verzeichnisse für optimale Build-Performance
 cacheDirectories = [
     "backend/node_modules",
-    "/tmp/.yarn-cache",
     "/usr/local/share/.cache/yarn/v6"
 ]
 
@@ -47,7 +42,6 @@ cmds = [
 # Build-Cache für wiederholte Deployments
 cacheDirectories = [
     "backend/dist",
-    "backend/.medusa/cache",
     "backend/node_modules/.cache"
 ]
 
