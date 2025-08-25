@@ -9,11 +9,7 @@ fi
 echo "Using DATABASE_URL=$DATABASE_URL"
 echo "Using REDIS_URL=$REDIS_URL"
 
-# Try to create database (will fail if it exists, which is fine)
-echo "Checking database connection..."
-yarn medusa db:create 2>/dev/null || echo "Database may already exist, continuing..."
-
-# Run migrations
+# Skip database creation - just run migrations
 echo "Running database migrations..."
 yarn medusa db:migrate
 
