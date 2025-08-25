@@ -1,19 +1,57 @@
-# nixpacks.toml for MedusaJS B2B Starter Backend
+# nixpacks.toml - Perfekt optimiert für MedusaJS B2B Starter auf CPX21
+# Konfiguriert für: 4GB RAM, 3 vCPU, PostgreSQL + Redis
 
 providers = ["node"]
 
 [variables]
+# Production-Umgebung
 NODE_ENV = "production"
+# Node.js 20 LTS für beste Kompatibilität und Performance
 NIXPACKS_NODE_VERSION = "20"
+# Memory-Optimierung für CPX21 (4GB RAM) - großzügiger mit mehr Speicher
+NODE_OPTIONS = "--max-old-space-size=2048 --optimize-for-size"
+# NPM-Konfiguration für Production-Builds
+NPM_CONFIG_PRODUCTION = "false"
+# Yarn-Optimierungen
+YARN_CACHE_FOLDER = "/tmp/.yarn-cache"
 
 [phases.setup]
+# Node.js 20 und Yarn installieren
 nixPkgs = ["nodejs_20", "yarn"]
+# Zusätzliche Tools für bessere Performance
+nixLibs = ["openssl"]
 
 [phases.install]
-cmds = ["cd backend && yarn install --frozen-lockfile"]
+# Ins Backend-Verzeichnis wechseln und Dependencies installieren
+cmds = [
+    "cd backend",
+    # Yarn-Cache für bessere Performance konfigurieren
+    "yarn config set cache-folder $YARN_CACHE_FOLDER",
+    # Dependencies mit frozen lockfile installieren
+    "yarn install --frozen-lockfile --network-timeout 300000 --prefer-offline"
+]
+# Cache-Verzeichnisse für optimale Build-Performance
+cacheDirectories = [
+    "backend/node_modules",
+    "/tmp/.yarn-cache",
+    "/usr/local/share/.cache/yarn/v6"
+]
 
 [phases.build]
-cmds = ["cd backend && yarn build"]
+# MedusaJS Backend builden
+cmds = [
+    "cd backend",
+    # Production-Build mit Medusa CLI
+    "yarn medusa build"
+]
+# Build-Cache für wiederholte Deployments
+cacheDirectories = [
+    "backend/dist",
+    "backend/.medusa/cache",
+    "backend/node_modules/.cache"
+]
 
 [start]
-cmd = "cd backend && yarn start"
+# Production-Start mit Medusa CLI
+# Port 9000 ist der Standard für MedusaJS
+cmd = "cd backend && yarn medusa start"
