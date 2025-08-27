@@ -1,123 +1,104 @@
-# ===========================================
-# Build Arguments (from Coolify build variables)
-# ===========================================
-arg NODE_ENV=production
+# Build Arguments
+ARG NODE_ENV=production
 
-# ===========================================
-# Stage 1: Dependencies Installation
-# ===========================================
-from node:23-alpine AS deps
-workdir /app
+# Stage 1: Dependencies
+FROM node:23-alpine AS deps
+WORKDIR /app
 
-# Accept build arguments
-arg NODE_ENV
+ARG NODE_ENV
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
-# Install system dependencies
-run apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    postgresql-client \
-    git
+RUN apk add --no-cache python3 make g++ postgresql-client git
+RUN corepack enable && corepack prepare yarn@4.4.0 --activate
 
-# Enable Yarn 4
-run corepack enable && corepack prepare yarn@4.4.0 --activate
+COPY backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
+RUN yarn install --network-timeout 300000
 
-# Copy package files
-copy backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
+# Stage 2: Builder
+FROM node:23-alpine AS builder
+WORKDIR /app
 
-# Install dependencies
-run yarn install --network-timeout 300000
+ARG NODE_ENV
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+ENV PGSSLMODE=disable
 
-# ===========================================
-# Stage 2: Application Build
-# ===========================================
-from node:23-alpine AS builder
-workdir /app
+RUN apk add --no-cache python3 make g++ git
+RUN corepack enable && corepack prepare yarn@4.4.0 --activate
 
-# Accept build arguments
-arg NODE_ENV
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/.yarn ./.yarn
+COPY backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
+COPY backend/ ./
 
-# Install build dependencies
-run apk add --no-cache python3 make g++ git
-run corepack enable && corepack prepare yarn@4.4.0 --activate
+# Ensure health endpoint exists before build
+RUN mkdir -p /app/src/api/health && \
+    cat > /app/src/api/health/route.ts << 'EOF'
+import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 
-# Copy dependencies from previous stage
-copy --from=deps /app/node_modules ./node_modules
-copy --from=deps /app/.yarn ./.yarn
-copy backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
+export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
+  res.json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || "development",
+  });
+}
+EOF
 
-# Copy application source
-copy backend/ ./
+RUN yarn medusa build
 
-# Build the application
-run yarn medusa build
+# Stage 3: Production
+FROM node:23-alpine AS production
+WORKDIR /app
 
-# ===========================================
-# Stage 3: Production Runtime
-# ===========================================
-from node:23-alpine as production
-workdir /app
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+ENV PGSSLMODE=disable
+ENV PGSSL=0
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+ENV MIKRO_ORM_SSL=false
+ENV MIKRO_ORM_REJECT_UNAUTHORIZED=false
 
-# Runtime arguments
-arg NODE_ENV=production
-env NODE_ENV=${NODE_ENV}
-
-# Install runtime dependencies
-run apk add --no-cache \
+RUN apk add --no-cache \
     postgresql-client \
     redis \
     curl \
+    wget \
+    netcat-openbsd \
     bash \
     tini && \
     corepack enable && \
     corepack prepare yarn@4.4.0 --activate
 
-# Create non-root user
-run addgroup -g 1001 -S nodejs && \
+RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# Copy built application
-copy --from=builder --chown=nodejs:nodejs /app ./
+COPY --from=builder --chown=nodejs:nodejs /app ./
 
-# Create required directories
-run mkdir -p /app/uploads /app/logs /app/.medusa && \
+RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
     chown -R nodejs:nodejs /app
 
-# Copy startup script from repository
-copy --chown=nodejs:nodejs startup.sh /app/startup.sh
-run chmod +x /app/startup.sh
+COPY --chown=nodejs:nodejs startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
 
-# Create health check endpoint
-run mkdir -p /app/src/api/health
-copy --chown=nodejs:nodejs <<EOF /app/src/api/health/route.ts
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  res.status(200).json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || "development"
-  });
-};
+# Create healthcheck script
+RUN cat > /app/healthcheck.sh << 'EOF'
+#!/bin/sh
+# Wait for port to be open
+timeout 10 sh -c 'until nc -z localhost 9000; do sleep 1; done'
+# Check health endpoint
+wget --no-verbose --tries=1 --spider --timeout=10 http://localhost:9000/health || exit 1
 EOF
+RUN chmod +x /app/healthcheck.sh && chown nodejs:nodejs /app/healthcheck.sh
 
-# Switch to non-root user
-user nodejs
+USER nodejs
+EXPOSE 9000
 
-# Expose port
-expose 9000
+HEALTHCHECK --interval=30s \
+            --timeout=30s \
+            --start-period=600s \
+            --retries=20 \
+            CMD /app/healthcheck.sh
 
-# Health check
-healthcheck --interval=30s \
-            --timeout=15s \
-            --start-period=180s \
-            --retries=10 \
-            CMD curl -f http://localhost:9000/health || exit 1
-
-# Use tini for signal handling
-entrypoint ["/sbin/tini", "--"]
-
-# Start application
-cmd ["/app/startup.sh"]
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/app/startup.sh"]
