@@ -30,21 +30,7 @@ COPY --from=deps /app/.yarn ./.yarn
 COPY backend/package.json backend/yarn.lock backend/.yarnrc.yml ./
 COPY backend/ ./
 
-# Ensure health endpoint exists before build
-RUN mkdir -p /app/src/api/health && \
-    cat > /app/src/api/health/route.ts << 'EOF'
-import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
-
-export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
-  res.json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || "development",
-  });
-}
-EOF
-
+# Build (assumes health endpoint exists in backend/src/api/health/route.ts)
 RUN yarn medusa build
 
 # Stage 3: Production
@@ -81,15 +67,12 @@ RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
 COPY --chown=nodejs:nodejs startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh
 
-# Create healthcheck script
-RUN cat > /app/healthcheck.sh << 'EOF'
-#!/bin/sh
-# Wait for port to be open
-timeout 10 sh -c 'until nc -z localhost 9000; do sleep 1; done'
-# Check health endpoint
-wget --no-verbose --tries=1 --spider --timeout=10 http://localhost:9000/health || exit 1
-EOF
-RUN chmod +x /app/healthcheck.sh && chown nodejs:nodejs /app/healthcheck.sh
+# Simple healthcheck script
+RUN echo '#!/bin/sh' > /app/healthcheck.sh && \
+    echo 'timeout 10 sh -c "until nc -z localhost 9000; do sleep 1; done"' >> /app/healthcheck.sh && \
+    echo 'wget --no-verbose --tries=1 --spider --timeout=10 http://localhost:9000/health || exit 1' >> /app/healthcheck.sh && \
+    chmod +x /app/healthcheck.sh && \
+    chown nodejs:nodejs /app/healthcheck.sh
 
 USER nodejs
 EXPOSE 9000
