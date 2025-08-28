@@ -123,7 +123,7 @@ RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
     chown -R nodejs:nodejs /app
 
 # Copy startup script (modified for npm)
-COPY --chown=nodejs:nodejs startup-npm.sh /app/startup.sh
+COPY --chown=nodejs:nodejs startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh
 
 # Switch to non-root user
