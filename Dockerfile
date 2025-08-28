@@ -98,7 +98,7 @@ expose 9000
 # Health check
 healthcheck --interval=30s \
             --timeout=15s \
-            --start-period=180s \
+            --start-period=60s \
             --retries=10 \
             CMD curl -f http://wks0cw4oswsc8ssc4sggs4wo.91.98.72.224.sslip.io:9000/health || exit 1
 
