@@ -1,5 +1,5 @@
 # ===========================================
-# Backend Dockerfile - Place in backend/ directory
+# Backend Dockerfile - NPM Version (Simpler)
 # ===========================================
 ARG NODE_ENV=production
 
@@ -27,12 +27,12 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-# Copy package files (now we're IN the backend directory)
-COPY package.json yarn.lock* ./
+# Copy only package.json (ignore yarn.lock to force npm usage)
+COPY package.json ./
 
-# Install dependencies with longer timeout
+# Install dependencies with npm
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-RUN yarn install --frozen-lockfile --network-timeout 600000
+RUN npm install --legacy-peer-deps
 
 # ===========================================
 # Stage 2: Application Build
@@ -59,9 +59,9 @@ RUN apk add --no-cache \
 
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json /app/yarn.lock* ./
+COPY --from=deps /app/package.json ./
 
-# Copy application source (everything in backend/)
+# Copy application source
 COPY . ./
 
 # Create health endpoint
@@ -75,7 +75,7 @@ RUN mkdir -p /app/src/api/health && \
 # Build the application
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV PGSSLMODE=disable
-RUN yarn build
+RUN npm run build
 
 # ===========================================
 # Stage 3: Production Runtime
@@ -122,8 +122,8 @@ COPY --from=builder --chown=nodejs:nodejs /app ./
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
     chown -R nodejs:nodejs /app
 
-# Copy startup script (now in backend directory)
-COPY --chown=nodejs:nodejs startup.sh /app/startup.sh
+# Copy startup script (modified for npm)
+COPY --chown=nodejs:nodejs startup-npm.sh /app/startup.sh
 RUN chmod +x /app/startup.sh
 
 # Switch to non-root user

@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================="
-echo "Medusa B2B Starter - Starting Up"
+echo "Medusa B2B Starter - Starting Up (NPM)"
 echo "========================================="
 
 # SSL environment variables
@@ -94,10 +94,10 @@ Connection: close
 {"status":"starting","stage":"migrating"}
 EOF
 
-# Run migrations with retry logic
+# Run migrations with retry logic (using npm instead of yarn)
 echo "Running database migrations..."
 for i in {1..3}; do
-    if yarn medusa db:migrate; then
+    if npx medusa db:migrate; then
         echo "✓ Migrations completed successfully"
         break
     else
@@ -120,9 +120,9 @@ Connection: close
 {"status":"starting","stage":"seeding"}
 EOF
 
-# Seed data if needed
+# Seed data if needed (using npm instead of yarn)
 echo "Seeding database..."
-yarn run seed 2>/dev/null || echo "⚠️  Seeding skipped or already done"
+npm run seed 2>/dev/null || echo "⚠️  Seeding skipped or already done"
 
 # Update health response
 cat > /tmp/health_response.txt << EOF
@@ -141,6 +141,6 @@ cleanup_temp_server
 # Give a moment for port to be released
 sleep 2
 
-# Start Medusa server
+# Start Medusa server (using npx instead of yarn)
 echo "🚀 Starting Medusa server on port ${PORT}..."
-exec yarn medusa start
+exec npx medusa start
