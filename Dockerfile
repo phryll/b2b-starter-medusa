@@ -110,8 +110,8 @@ EXPOSE 9000
 
 # Healthcheck with realistic timing for Medusa startup
 HEALTHCHECK --interval=30s \
-            --timeout=10s \
-            --start-period=600s \
+            --timeout=30s \
+            --start-period=120s \
             --retries=20 \
             CMD wget --no-verbose --tries=1 --spider http://localhost:9000/health || exit 1
 

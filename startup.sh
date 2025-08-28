@@ -5,7 +5,7 @@ echo "========================================="
 echo "Medusa B2B Starter - Starting Up"
 echo "========================================="
 
-# SSL environment variables (already working from your Coolify config)
+# SSL environment variables
 export PGSSLMODE=disable
 export NODE_TLS_REJECT_UNAUTHORIZED=0
 export MIKRO_ORM_SSL=false
@@ -21,6 +21,23 @@ echo "NODE_ENV: ${NODE_ENV}"
 echo "PORT: ${PORT}"
 echo "WORKER_MODE: ${WORKER_MODE}"
 echo ""
+
+# Start a minimal HTTP server immediately for healthchecks
+echo "Starting temporary health server..."
+while true; do
+  echo -e "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 45\r\n\r\n{\"status\":\"starting\",\"stage\":\"initializing\"}" | nc -l -p 9000 -q 1 2>/dev/null || true
+done &
+TEMP_SERVER_PID=$!
+
+# Function to cleanup temporary server
+cleanup_temp_server() {
+  if [ ! -z "$TEMP_SERVER_PID" ]; then
+    kill $TEMP_SERVER_PID 2>/dev/null || true
+  fi
+}
+
+# Ensure cleanup on exit
+trap cleanup_temp_server EXIT
 
 # Test database connection
 echo "Testing database connection..."
@@ -49,6 +66,10 @@ yarn medusa db:migrate || {
 # Seed data if needed
 echo "Seeding database..."
 yarn run seed 2>/dev/null || echo "Seeding skipped or already done"
+
+# Stop temporary server before starting real server
+echo "Stopping temporary health server..."
+cleanup_temp_server
 
 # Start Medusa server
 echo "Starting Medusa server on port ${PORT}..."
