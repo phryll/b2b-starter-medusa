@@ -16,6 +16,14 @@ services:
     ports:
       - "5432:5432"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'      # 33% of CPU
+          memory: 1G       # 25% of RAM
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medusa_user -d medusa_db"]
       interval: 10s
@@ -30,6 +38,14 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'      # 17% of CPU
+          memory: 256M     # 6% of RAM
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -50,10 +66,12 @@ services:
       NODE_ENV: production
       PORT: 3000
       WORKER_MODE: shared
-      # CORS settings
-      STORE_CORS: http://localhost:3001,https://your-storefront-domain.com
-      ADMIN_CORS: http://localhost:3000,https://your-backend-domain.com
-      AUTH_CORS: http://localhost:3000,https://your-backend-domain.com
+      # Memory optimization for Node.js
+      NODE_OPTIONS: "--max-old-space-size=1536"
+      # Temporary CORS - will update after getting real domains
+      STORE_CORS: "*"
+      ADMIN_CORS: "*"
+      AUTH_CORS: "*"
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,12 +82,18 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'      # 33% of CPU (Medusa needs more CPU)
+          memory: 1.5G     # 37% of RAM
+        reservations:
+          cpus: '0.5'
+          memory: 768M
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`medusa-backend.${DOKPLOY_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.backend.rule=Host(`backend-${COMPOSE_PROJECT_NAME}.traefik.me`)"
       - "traefik.http.services.backend.loadbalancer.server.port=3000"
-      - "traefik.http.routers.backend.entrypoints=web,websecure"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
 
   storefront:
     build: 
@@ -77,10 +101,12 @@ services:
       dockerfile: Dockerfile
     container_name: medusa-storefront
     environment:
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: https://medusa-backend.${DOKPLOY_DOMAIN:-localhost}
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_01JH9Q2V8X3K4M5N6P7R8S9T0U
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://backend:3000
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_placeholder
       NODE_ENV: production
       PORT: 3001
+      # Memory optimization for Next.js
+      NODE_OPTIONS: "--max-old-space-size=1024"
     depends_on:
       - backend
     networks:
@@ -88,12 +114,18 @@ services:
     ports:
       - "3001:3001"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'      # 17% of CPU
+          memory: 1G       # 25% of RAM
+        reservations:
+          cpus: '0.25'
+          memory: 512M
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.storefront.rule=Host(`medusa-store.${DOKPLOY_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.storefront.rule=Host(`store-${COMPOSE_PROJECT_NAME}.traefik.me`)"
       - "traefik.http.services.storefront.loadbalancer.server.port=3001"
-      - "traefik.http.routers.storefront.entrypoints=web,websecure"
-      - "traefik.http.routers.storefront.tls.certresolver=letsencrypt"
 
 volumes:
   postgres_data:
