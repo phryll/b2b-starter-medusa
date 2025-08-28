@@ -106,14 +106,14 @@ RUN chmod +x /app/startup.sh
 # Switch to non-root user
 USER nodejs
 
-EXPOSE 9000
+EXPOSE 3000
 
 # Healthcheck with realistic timing for Medusa startup
 HEALTHCHECK --interval=30s \
             --timeout=30s \
             --start-period=120s \
             --retries=20 \
-            CMD curl -f http://localhost:9000/health || exit 1
+            CMD curl -f http://localhost:3000/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/startup.sh"]

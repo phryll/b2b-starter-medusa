@@ -13,7 +13,7 @@ export MIKRO_ORM_REJECT_UNAUTHORIZED=false
 
 # Set defaults from environment
 export NODE_ENV=${NODE_ENV:-production}
-export PORT=${PORT:-9000}
+export PORT=${PORT:-3000}
 export WORKER_MODE=${WORKER_MODE:-shared}
 
 echo "Configuration loaded from environment"
@@ -25,7 +25,7 @@ echo ""
 # Start a minimal HTTP server immediately for healthchecks
 echo "Starting temporary health server..."
 while true; do
-  echo -e "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 45\r\n\r\n{\"status\":\"starting\",\"stage\":\"initializing\"}" | nc -l -p 9000 -q 1 2>/dev/null || true
+  echo -e "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 45\r\n\r\n{\"status\":\"starting\",\"stage\":\"initializing\"}" | nc -l -p 3000 -q 1 2>/dev/null || true
 done &
 TEMP_SERVER_PID=$!
 

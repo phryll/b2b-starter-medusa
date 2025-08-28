@@ -1,100 +1,206 @@
-version: "3.9"
+# docker-compose.yml (place in root directory)
+version: '3.8'
 
 services:
-  medusa:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        # Build arguments - passed from Coolify build variables
-        NODE_ENV: ${NODE_ENV:-production}
-    image: medusa-b2b:latest
-    container_name: medusa-b2b-app
-    restart: unless-stopped
-    
-    # Port mapping
-    ports:
-      - "${PORT:-9000}:9000"
-    
-    # Environment variables - all pulled from Coolify
+  postgres:
+    image: postgres:15-alpine
+    container_name: medusa-postgres
     environment:
-      # Database Configuration
-      DATABASE_URL: ${DATABASE_URL}
-      DATABASEURL: ${DATABASEURL}
-      
-      # PostgreSQL SSL Disable
-      PGSSLMODE: ${PGSSLMODE:-disable}
-      PGSSL: ${PGSSL:-0}
-      NODE_TLS_REJECT_UNAUTHORIZED: ${NODE_TLS_REJECT_UNAUTHORIZED:-0}
-      PGSSLCERT: ${PGSSLCERT:-}
-      PGSSLKEY: ${PGSSLKEY:-}
-      PGSSLROOTCERT: ${PGSSLROOTCERT:-}
-      
-      # Redis Configuration
-      REDIS_URL: ${REDIS_URL}
-      REDISURL: ${REDISURL}
-      CACHE_REDIS_URL: ${CACHE_REDIS_URL}
-      
-      # Application Configuration
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-9000}
-      WORKER_MODE: ${WORKER_MODE:-shared}
-      
-      # Security
-      JWT_SECRET: ${JWT_SECRET}
-      COOKIE_SECRET: ${COOKIE_SECRET}
-      
-      # CORS Configuration
-      STORE_CORS: ${STORE_CORS}
-      ADMIN_CORS: ${ADMIN_CORS}
-      AUTH_CORS: ${AUTH_CORS}
-      
-      # Admin Configuration
-      DISABLE_ADMIN: ${DISABLE_ADMIN:-false}
-      MEDUSA_ADMIN_ONBOARDING_TYPE: ${MEDUSA_ADMIN_ONBOARDING_TYPE:-default}
-    
-    # Health check configuration
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
-      interval: 30s
-      timeout: 15s
-      retries: 10
-      start_period: 180s
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    
-    # Volumes for persistent data
+      POSTGRES_DB: medusa_db
+      POSTGRES_USER: medusa_user
+      POSTGRES_PASSWORD: medusa_secure_password_123
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
-      - medusa-uploads:/app/uploads
-      - medusa-data:/app/.medusa
-    
-    # Network configuration
+      - postgres_data:/var/lib/postgresql/data
     networks:
-      - medusa-network
-    
-    # Logging configuration
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - dokploy
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
 
-# Network definition
-networks:
-  medusa-network:
-    driver: bridge
+  redis:
+    image: redis:7-alpine
+    container_name: medusa-redis
+    networks:
+      - dokploy
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
 
-# Volume definitions
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medusa-backend
+    environment:
+      DATABASE_URL: postgres://medusa_user:medusa_secure_password_123@postgres:5432/medusa_db
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secure-jwt-secret-change-this
+      COOKIE_SECRET: your-super-secure-cookie-secret-change-this
+      MEDUSA_ADMIN_ONBOARDING_TYPE: default
+      NODE_ENV: production
+      PORT: 3000
+      MEDUSA_BACKEND_URL: http://localhost:3000
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - dokploy
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`medusa-backend.${DOKPLOY_DOMAIN:-localhost}`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.backend.entrypoints=web,websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+
+  storefront:
+    build: 
+      context: ./storefront
+      dockerfile: Dockerfile
+    container_name: medusa-storefront
+    environment:
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://backend:3000
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_01JH9Q2V8X3K4M5N6P7R8S9T0U
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      - backend
+    networks:
+      - dokploy
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.storefront.rule=Host(`medusa-store.${DOKPLOY_DOMAIN:-localhost}`)"
+      - "traefik.http.services.storefront.loadbalancer.server.port=3000"
+      - "traefik.http.routers.storefront.entrypoints=web,websecure"
+      - "traefik.http.routers.storefront.tls.certresolver=letsencrypt"
+
 volumes:
-  medusa-uploads:
+  postgres_data:
     driver: local
-  medusa-data:
-    driver: local
+
+networks:
+  dokploy:
+    external: true
+
+---
+
+# backend/Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    musl-dev \
+    giflib-dev \
+    pixman-dev \
+    pangomm-dev \
+    libjpeg-turbo-dev \
+    freetype-dev
+
+# Copy package files
+COPY package.json yarn.lock* ./
+
+# Install dependencies
+RUN yarn install --frozen-lockfile --production=false
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN yarn build
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+# Start the application
+CMD ["yarn", "start"]
+
+---
+
+# storefront/Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json yarn.lock* ./
+
+# Install dependencies
+RUN yarn install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build the Next.js application
+RUN yarn build
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Start the application
+CMD ["yarn", "start"]
+
+---
+
+# .dockerignore (place in root)
+node_modules
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.production.local
+.env.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next
+.vercel
+**/.DS_Store
+
+---
+
+# backend/.dockerignore
+node_modules
+.git
+.env*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist
+build
+uploads
+
+---
+
+# storefront/.dockerignore
+node_modules
+.git
+.env*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next
+out
+build
