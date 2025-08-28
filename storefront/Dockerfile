@@ -1,5 +1,5 @@
 # ===========================================
-# Storefront Dockerfile - Yarn 4 Compatible
+# Storefront Dockerfile - NPM Version (Simpler)
 # ===========================================
 FROM node:20-alpine AS deps
 WORKDIR /app
@@ -11,16 +11,11 @@ RUN apk add --no-cache \
     g++ \
     git
 
-# Enable Corepack and setup Yarn 4
-RUN corepack enable && \
-    corepack prepare yarn@4.4.0 --activate
+# Copy package.json only (ignore yarn.lock to force npm usage)
+COPY package.json ./
 
-# Copy package files
-COPY package.json yarn.lock .yarnrc.yml* ./
-
-# Install dependencies with Yarn 4
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-RUN yarn install --immutable --network-timeout 600000
+# Use npm instead of yarn to avoid version conflicts
+RUN npm install --legacy-peer-deps
 
 # ===========================================
 # Stage 2: Application Build
@@ -35,20 +30,15 @@ RUN apk add --no-cache \
     g++ \
     git
 
-# Enable Corepack and setup Yarn 4
-RUN corepack enable && \
-    corepack prepare yarn@4.4.0 --activate
-
-# Copy dependencies and config from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/.yarn ./.yarn
-COPY --from=deps /app/package.json /app/yarn.lock /app/.yarnrc.yml* ./
+# Copy package.json and install all dependencies (including dev)
+COPY package.json ./
+RUN npm install --legacy-peer-deps
 
 # Copy application source
 COPY . ./
 
-# Build the application
-RUN yarn build
+# Build the application with npm
+RUN npm run build
 
 # ===========================================
 # Stage 3: Production Runtime
@@ -65,25 +55,17 @@ RUN apk add --no-cache \
     bash \
     tini
 
-# Enable Corepack for production
-RUN corepack enable && \
-    corepack prepare yarn@4.4.0 --activate
-
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# Copy built application from builder
+# Copy only what we need for production
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
-COPY --from=builder --chown=nodejs:nodejs /app/yarn.lock ./
-COPY --from=builder --chown=nodejs:nodejs /app/.yarnrc.yml* ./
-COPY --from=builder --chown=nodejs:nodejs /app/.yarn ./.yarn
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nodejs:nodejs /app/public ./public
 
-# Create required directories and fix permissions
-RUN mkdir -p /app/.next && \
+# Install only production dependencies in final stage
+RUN npm install --only=production --legacy-peer-deps && \
     chown -R nodejs:nodejs /app
 
 # Switch to non-root user
@@ -99,4 +81,4 @@ HEALTHCHECK --interval=30s \
             CMD curl -f http://localhost:3001/ || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["yarn", "start"]
+CMD ["npm", "start"]
