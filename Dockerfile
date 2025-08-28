@@ -88,20 +88,6 @@ run mkdir -p /app/uploads /app/logs /app/.medusa && \
 copy --chown=nodejs:nodejs startup.sh /app/startup.sh
 run chmod +x /app/startup.sh
 
-# Create health check endpoint
-run mkdir -p /app/src/api/health
-copy --chown=nodejs:nodejs <<EOF /app/src/api/health/route.ts
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
-
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  res.status(200).json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || "development"
-  });
-};
-EOF
 
 # Switch to non-root user
 user nodejs
@@ -114,7 +100,7 @@ healthcheck --interval=30s \
             --timeout=15s \
             --start-period=180s \
             --retries=10 \
-            CMD curl -f http://localhost:9000/health || exit 1
+            CMD curl -f http://wks0cw4oswsc8ssc4sggs4wo.91.98.72.224.sslip.io:9000/health || exit 1
 
 # Use tini for signal handling
 entrypoint ["/sbin/tini", "--"]
