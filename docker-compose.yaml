@@ -19,8 +19,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'      # 33% of CPU
-          memory: 1G       # 25% of RAM
+          cpus: '1.0'
+          memory: 1G
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -41,8 +41,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'      # 17% of CPU
-          memory: 256M     # 6% of RAM
+          cpus: '0.5'
+          memory: 256M
         reservations:
           cpus: '0.25'
           memory: 128M
@@ -54,8 +54,8 @@ services:
 
   backend:
     build: 
-      context: .
-      dockerfile: Dockerfile
+      context: ./backend  # ← Fixed: Points to backend directory
+      dockerfile: Dockerfile  # ← This will find backend/Dockerfile
     container_name: medusa-backend
     environment:
       DATABASE_URL: postgres://medusa_user:medusa_secure_password_123@postgres:5432/medusa_db
@@ -66,7 +66,6 @@ services:
       NODE_ENV: production
       PORT: 3000
       WORKER_MODE: shared
-      # Memory optimization for Node.js
       NODE_OPTIONS: "--max-old-space-size=1536"
       # Temporary CORS - will update after getting real domains
       STORE_CORS: "*"
@@ -85,8 +84,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'      # 33% of CPU (Medusa needs more CPU)
-          memory: 1.5G     # 37% of RAM
+          cpus: '1.0'
+          memory: 1.5G
         reservations:
           cpus: '0.5'
           memory: 768M
@@ -97,15 +96,14 @@ services:
 
   storefront:
     build: 
-      context: ./storefront
-      dockerfile: Dockerfile
+      context: ./storefront  # ← Fixed: Points to storefront directory
+      dockerfile: Dockerfile  # ← This will find storefront/Dockerfile
     container_name: medusa-storefront
     environment:
       NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://backend:3000
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_placeholder
       NODE_ENV: production
       PORT: 3001
-      # Memory optimization for Next.js
       NODE_OPTIONS: "--max-old-space-size=1024"
     depends_on:
       - backend
@@ -117,8 +115,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'      # 17% of CPU
-          memory: 1G       # 25% of RAM
+          cpus: '0.5'
+          memory: 1G
         reservations:
           cpus: '0.25'
           memory: 512M
