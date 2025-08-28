@@ -1,32 +1,26 @@
 # ===========================================
-# Storefront Dockerfile - Fixed Version
+# Storefront Dockerfile - Yarn 4 Compatible
 # ===========================================
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Install build dependencies for potential native modules
+# Install system dependencies
 RUN apk add --no-cache \
     python3 \
     make \
     g++ \
     git
 
-# Copy package files with better error handling
-COPY package.json ./
-# Copy yarn.lock only if it exists, otherwise use npm
-COPY yarn.lock* ./
+# Enable Corepack and setup Yarn 4
+RUN corepack enable && \
+    corepack prepare yarn@4.4.0 --activate
 
-# Install dependencies with fallback to npm if yarn fails
-RUN set -e; \
-    if [ -f yarn.lock ]; then \
-        echo "Installing with Yarn..."; \
-        yarn install --frozen-lockfile --network-timeout 600000 --verbose || \
-        (echo "Yarn failed, trying without frozen lockfile..." && \
-         yarn install --network-timeout 600000 --verbose); \
-    else \
-        echo "No yarn.lock found, using npm..."; \
-        npm ci --only=production; \
-    fi
+# Copy package files
+COPY package.json yarn.lock .yarnrc.yml* ./
+
+# Install dependencies with Yarn 4
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN yarn install --immutable --network-timeout 600000
 
 # ===========================================
 # Stage 2: Application Build
@@ -41,22 +35,20 @@ RUN apk add --no-cache \
     g++ \
     git
 
-# Copy dependencies and package files from deps stage
+# Enable Corepack and setup Yarn 4
+RUN corepack enable && \
+    corepack prepare yarn@4.4.0 --activate
+
+# Copy dependencies and config from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json ./
-COPY --from=deps /app/yarn.lock* ./
+COPY --from=deps /app/.yarn ./.yarn
+COPY --from=deps /app/package.json /app/yarn.lock /app/.yarnrc.yml* ./
 
 # Copy application source
 COPY . ./
 
-# Build with error handling
-RUN set -e; \
-    echo "Building Next.js application..."; \
-    if [ -f yarn.lock ]; then \
-        yarn build; \
-    else \
-        npm run build; \
-    fi
+# Build the application
+RUN yarn build
 
 # ===========================================
 # Stage 3: Production Runtime
@@ -73,18 +65,24 @@ RUN apk add --no-cache \
     bash \
     tini
 
+# Enable Corepack for production
+RUN corepack enable && \
+    corepack prepare yarn@4.4.0 --activate
+
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 # Copy built application from builder
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
-COPY --from=builder --chown=nodejs:nodejs /app/yarn.lock* ./
+COPY --from=builder --chown=nodejs:nodejs /app/yarn.lock ./
+COPY --from=builder --chown=nodejs:nodejs /app/.yarnrc.yml* ./
+COPY --from=builder --chown=nodejs:nodejs /app/.yarn ./.yarn
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nodejs:nodejs /app/public ./public
 
-# Create required directories
+# Create required directories and fix permissions
 RUN mkdir -p /app/.next && \
     chown -R nodejs:nodejs /app
 
@@ -93,12 +91,12 @@ USER nodejs
 
 EXPOSE 3001
 
-# Health check for Next.js - more forgiving
+# Health check
 HEALTHCHECK --interval=30s \
             --timeout=10s \
-            --start-period=60s \
+            --start-period=90s \
             --retries=5 \
-            CMD curl -f http://localhost:3001/ || curl -f http://localhost:3001/api/health || exit 1
+            CMD curl -f http://localhost:3001/ || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["yarn", "start"]
