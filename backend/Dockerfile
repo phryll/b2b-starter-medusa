@@ -117,7 +117,8 @@ RUN apk add --no-cache \
     giflib \
     pixman \
     libjpeg-turbo \
-    freetype
+    freetype \
+    npm
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
