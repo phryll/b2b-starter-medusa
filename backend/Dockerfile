@@ -75,7 +75,7 @@ RUN mkdir -p /app/src/api/health && \
     echo '};' >> /app/src/api/health/route.ts
 
  
-RUN npx tsc medusa-config.ts --outDir . --module commonjs --target es2020    
+RUN ./node_modules/.bin/tsc medusa-config.ts --outDir . --module commonjs --target es2020 
 
 # Build the application
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
