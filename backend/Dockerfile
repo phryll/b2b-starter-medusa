@@ -64,7 +64,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
 
 # Fix: Ensure TypeScript is available for build
-RUN npm install typescript @types/node --save-dev
+RUN npm install typescript @types/node --save-dev --legacy-peer-deps
 
 # Copy application source
 COPY . ./
