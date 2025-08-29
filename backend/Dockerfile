@@ -25,12 +25,11 @@ RUN apk add --no-cache \
     pixman-dev \
     pangomm-dev \
     libjpeg-turbo-dev \
-    freetype-dev
+    freetype-dev \
+    npm
 
 # Copy only package.json (ignore yarn.lock to force npm usage)
 COPY package.json ./
-
-RUN apk add --no-cache npm
 
 # Clean install with correct dependencies
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
