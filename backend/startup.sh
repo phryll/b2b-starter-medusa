@@ -88,6 +88,9 @@ else
     exit 1
 fi
 
+# Log DATABASE_URL for debugging
+echo "DATABASE_URL at startup: $DATABASE_URL"
+
 # Update health response
 cat > /tmp/health_response.txt << EOF
 HTTP/1.1 200 OK

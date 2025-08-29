@@ -139,6 +139,9 @@ USER nodejs
 
 EXPOSE 3000
 
+# Log the DATABASE_URL at runtime
+RUN echo "DATABASE_URL at runtime: ${DATABASE_URL}"
+
 # Health check
 HEALTHCHECK --interval=30s \
             --timeout=10s \
