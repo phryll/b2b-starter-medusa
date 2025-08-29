@@ -37,7 +37,7 @@
     "awilix": "^8.0.1",
     "pg": "^8.13.0",
     "zod": "3.22.4",
-    "zod-validation-error": "^2.2.0"
+    "zod-validation-error": "4.0.1"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.8.8-snapshot-20250714090316",
