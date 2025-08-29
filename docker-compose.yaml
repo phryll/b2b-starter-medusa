@@ -70,7 +70,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "9000:3000"  # Changed external port to 9000 to avoid conflict with Dokploy
     restart: unless-stopped
     deploy:
       resources:
@@ -93,7 +93,7 @@ services:
       dockerfile: Dockerfile
     container_name: medusa-storefront
     environment:
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://backend:3000
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://backend:3000  # Internal communication still uses 3000
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_placeholder_will_update_after_deployment
       NODE_ENV: production
       PORT: 3001
