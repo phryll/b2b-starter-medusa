@@ -32,9 +32,7 @@ COPY package.json ./
 
 # Install dependencies with npm, including TypeScript explicitly
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-RUN npm install --legacy-peer-deps && \
-    npm install -g typescript && \
-    npm install typescript @types/node --save-dev --legacy-peer-deps
+RUN npm install typescript --save-dev
 
 # ===========================================
 # Stage 2: Application Build
@@ -63,10 +61,13 @@ RUN apk add --no-cache \
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
 
+# Fix: Ensure TypeScript is available for build
+RUN npm install typescript @types/node --save-dev
+
 # Copy application source
 COPY . ./
 
-# Create health endpoint
+# Create/override health endpoint (AFTER source copy, BEFORE build)
 RUN mkdir -p /app/src/api/health && \
     echo 'import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";' > /app/src/api/health/route.ts && \
     echo '' >> /app/src/api/health/route.ts && \
@@ -74,10 +75,7 @@ RUN mkdir -p /app/src/api/health && \
     echo '  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString(), uptime: process.uptime() });' >> /app/src/api/health/route.ts && \
     echo '};' >> /app/src/api/health/route.ts
 
- 
-RUN npm run build
-
-# Build the application
+# Build the application (with TypeScript now available)
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV PGSSLMODE=disable
 RUN npm run build
