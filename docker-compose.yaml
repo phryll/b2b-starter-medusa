@@ -1,3 +1,4 @@
+# Removed version line as it's obsolete
 services:
   postgres:
     image: postgres:15-alpine

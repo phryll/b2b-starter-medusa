@@ -1,5 +1,5 @@
 # ===========================================
-# Storefront Dockerfile - NPM Version (Simpler)
+# Storefront Dockerfile - Robust Build Version
 # ===========================================
 FROM node:20-alpine AS deps
 WORKDIR /app
@@ -37,6 +37,10 @@ RUN npm install --legacy-peer-deps
 # Copy application source
 COPY . ./
 
+# Create a .env.local file with build-time placeholders
+RUN echo "NEXT_PUBLIC_MEDUSA_BACKEND_URL=http://localhost:3000" > .env.local && \
+    echo "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_build_placeholder" >> .env.local
+
 # Build the application with npm
 RUN npm run build
 
@@ -63,6 +67,7 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 COPY --from=builder --chown=nodejs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nodejs:nodejs /app/public ./public
+COPY --from=builder --chown=nodejs:nodejs /app/next.config.* ./
 
 # Install only production dependencies in final stage
 RUN npm install --only=production --legacy-peer-deps && \
