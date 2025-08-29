@@ -13,7 +13,7 @@
     "medusa"
   ],
   "scripts": {
-    "build": "medusa build",
+    "build": "tsc medusa-config.ts --outDir . --module commonjs --target es2020 && medusa build",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
     "dev": "medusa develop",

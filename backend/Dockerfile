@@ -74,6 +74,9 @@ RUN mkdir -p /app/src/api/health && \
     echo '  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString(), uptime: process.uptime() });' >> /app/src/api/health/route.ts && \
     echo '};' >> /app/src/api/health/route.ts
 
+ 
+RUN npx tsc medusa-config.ts --outDir . --module commonjs --target es2020    
+
 # Build the application
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV PGSSLMODE=disable

@@ -4,7 +4,7 @@ services:
     container_name: medusa-postgres
     environment:
       POSTGRES_DB: medusa_db
-      POSTGRES_USER: medusa_user
+      POSTGRES_USER: nodejs
       POSTGRES_PASSWORD: medusa_secure_password_123
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
@@ -21,7 +21,7 @@ services:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U medusa_user -d medusa_db"]
+      test: ["CMD-SHELL", "pg_isready -U nodejs -d medusa_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -52,7 +52,7 @@ services:
       dockerfile: Dockerfile
     container_name: medusa-backend
     environment:
-      DATABASE_URL: postgres://medusa_user:medusa_secure_password_123@postgres:5432/medusa_db
+      DATABASE_URL: postgres://nodejs:medusa_secure_password_123@postgres:5432/medusa_db
       REDIS_URL: redis://redis:6379
       JWT_SECRET: GUA6uNfbbl9nksLumoVc0VulzElEEqbqC6zsaYBAF0c=
       COOKIE_SECRET: fvYJhZmUuMRcdjjZi2+OHK+xK0Fqsr9KMA2hLqcqEo8=
@@ -64,6 +64,7 @@ services:
       STORE_CORS: "*"
       ADMIN_CORS: "*"
       AUTH_CORS: "*"
+      TS_NODE_TRANSPILE_ONLY: "true"
     depends_on:
       postgres:
         condition: service_healthy
