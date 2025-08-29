@@ -79,6 +79,10 @@ RUN mkdir -p /app/src/api/health && \
 # Build the application (with TypeScript now available)
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV PGSSLMODE=disable
+ENV DATABASE_URL="postgres://dummy:dummy@localhost:5432/dummy"
+ENV REDIS_URL="redis://localhost:6379"
+ENV JWT_SECRET="dummysecret"
+ENV COOKIE_SECRET="dummycookiesecret"
 RUN npm run build
 
 # ===========================================
@@ -144,3 +148,8 @@ HEALTHCHECK --interval=30s \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/startup.sh"]
+
+ENV DATABASE_URL="postgres://dummy:dummy@localhost:5432/dummy"
+ENV REDIS_URL="redis://localhost:6379"
+ENV JWT_SECRET="dummysecret"
+ENV COOKIE_SECRET="dummycookiesecret"
