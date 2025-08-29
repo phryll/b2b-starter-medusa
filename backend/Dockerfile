@@ -30,9 +30,10 @@ RUN apk add --no-cache \
 # Copy only package.json (ignore yarn.lock to force npm usage)
 COPY package.json ./
 
-# Install dependencies with npm, including TypeScript explicitly
+# Clean install with correct dependencies
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-RUN npm install typescript --save-dev
+RUN rm -rf node_modules package-lock.json && \
+    npm install --legacy-peer-deps
 
 # ===========================================
 # Stage 2: Application Build

@@ -19,6 +19,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "checkJs": false,
+    "allowSyntheticDefaultImports": true,
+    "noImplicitAny": false,
     "paths": {
       "@starter/types": ["./src/types"],
       "@starter/types/*": ["./src/types/*"]

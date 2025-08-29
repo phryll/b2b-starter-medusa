@@ -1,15 +1,32 @@
-import { QUOTE_MODULE } from "./src/modules/quote";
-import { APPROVAL_MODULE } from "./src/modules/approval";
-import { COMPANY_MODULE } from "./src/modules/company";
-import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
+// medusa-config.js
+const { loadEnv, defineConfig, Modules } = require("@medusajs/framework/utils");
 
-loadEnv(process.env.NODE_ENV!, process.cwd());
+// Module constants (replace with actual values from your module files)
+const COMPANY_MODULE = "company";
+const QUOTE_MODULE = "quote";
+const APPROVAL_MODULE = "approval";
+
+loadEnv(process.env.NODE_ENV || "production", process.cwd());
+
+// Validate required environment variables
+const requiredEnvVars = [
+  'DATABASE_URL',
+  'REDIS_URL',
+  'JWT_SECRET',
+  'COOKIE_SECRET'
+];
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
 
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
-    workerMode: process.env.WORKER_MODE as "shared" | "worker" | "server",
+    workerMode: process.env.WORKER_MODE || "shared",
     http: {
       storeCors: process.env.STORE_CORS || "*",
       adminCors: process.env.ADMIN_CORS || "*",
