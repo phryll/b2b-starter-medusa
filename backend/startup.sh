@@ -33,9 +33,6 @@ Connection: close
 {"status":"starting","stage":"initializing"}
 EOF
 
-# After the health endpoint creation, add:
-echo "Compiling TypeScript config..."
-npx tsc medusa-config.ts --outDir . --module commonjs --target es2020 || echo "Config already compiled"
 
 # Start temporary health server using netcat
 start_temp_health_server() {
