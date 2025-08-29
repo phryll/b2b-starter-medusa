@@ -16,7 +16,10 @@ RUN apk add --no-cache \
 
 # Copy package.json and install ALL dependencies (dev + production)
 COPY package.json ./
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps && \
+    npm install -g typescript && \
+    npm install typescript @types/node --save-dev --legacy-peer-deps
+
 
 # Copy source code (no build during Docker build)
 COPY . ./
