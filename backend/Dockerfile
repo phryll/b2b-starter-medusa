@@ -58,7 +58,7 @@ RUN apk add --no-cache \
     pangomm-dev \
     libjpeg-turbo-dev \
     freetype-dev \
-    npm install -g typescript
+    typescript
 
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
