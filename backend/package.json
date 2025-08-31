@@ -37,10 +37,21 @@
     "typescript": "^5.5.3",
     "@types/node": "^20.0.0",
     "awilix": "^8.0.1",
-    "pg": "^8.13.0",
     "zod": "3.22.4",
+    "pg": "^8.13.0",
     "zod-validation-error": "4.0.1",
     "dotenv": "^16.4.5"
+  },
+  "overrides": {
+    "@medusajs/utils": {
+      "zod": "3.22.4"
+    },
+    "@medusajs/framework": {
+      "zod": "3.22.4"  
+    }
+  },
+  "resolutions": {
+    "zod": "3.22.4"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.8.8-snapshot-20250714090316",
