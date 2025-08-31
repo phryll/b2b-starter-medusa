@@ -77,6 +77,8 @@ RUN mkdir -p /app/src/api/health && \
 # Build the application (with TypeScript now available)
 RUN npm run build
 
+RUN npm ls zod
+
 # Verify build worked
 RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
 
