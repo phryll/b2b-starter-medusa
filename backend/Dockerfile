@@ -57,17 +57,21 @@ RUN apk add --no-cache \
     pixman-dev \
     pangomm-dev \
     libjpeg-turbo-dev \
-    freetype-dev
+    freetype-dev \
+    npm install -g typescript
 
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
 
-# Fix: Ensure TypeScript is available for build
-RUN npm install typescript @types/node --save-dev --legacy-peer-deps
+# Ensure TypeScript is available locally too
+RUN npm install typescript @types/node --save-dev --legacy-peer-deps --no-optional
 
 # Copy application source
 COPY . ./
+
+# Verify TypeScript is available before building
+RUN which tsc && tsc --version
 
 # Create/override health endpoint (AFTER source copy, BEFORE build)
 RUN mkdir -p /app/src/api/health && \
