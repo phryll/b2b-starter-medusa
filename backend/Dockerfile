@@ -104,7 +104,7 @@ ENV MIKRO_ORM_SSL=false
 ENV MIKRO_ORM_REJECT_UNAUTHORIZED=false
 
 # Set port explicitly
-ENV PORT=3000
+ENV PORT=3001
 
 # Install runtime dependencies
 RUN apk add --no-cache \
@@ -141,7 +141,7 @@ RUN chmod +x /app/startup.sh
 # Switch to non-root user
 USER nodejs
 
-EXPOSE 3000
+EXPOSE 3001
 
 
 # Health check
@@ -149,7 +149,7 @@ HEALTHCHECK --interval=30s \
             --timeout=10s \
             --start-period=180s \
             --retries=10 \
-            CMD curl -f http://localhost:3000/health || exit 1
+            CMD curl -f http://localhost:3001/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/startup.sh"]
