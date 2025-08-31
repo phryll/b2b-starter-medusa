@@ -1,6 +1,10 @@
 // medusa-config.js
 const { loadEnv, defineConfig, Modules } = require("@medusajs/framework/utils");
 
+const ApprovalModule = require("./src/modules/approval").default;
+const CompanyModule = require("./src/modules/company").default;
+const QuoteModule = require("./src/modules/quote").default;
+
 // Module constants (replace with actual values from your module files)
 const COMPANY_MODULE = "company";
 const QUOTE_MODULE = "quote";
@@ -38,13 +42,13 @@ module.exports = defineConfig({
   },
   modules: {
     [COMPANY_MODULE]: {
-      resolve: "./modules/company",
+      resolve: "./src/modules/company",
     },
     [QUOTE_MODULE]: {
-      resolve: "./modules/quote",
+      resolve: "./src/modules/quote",
     },
     [APPROVAL_MODULE]: {
-      resolve: "./modules/approval",
+      resolve: "./src/modules/approval",
     },
     [Modules.CACHE]: {
       resolve: "@medusajs/medusa/cache-inmemory",

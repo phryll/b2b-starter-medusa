@@ -80,6 +80,12 @@ RUN mkdir -p /app/src/api/health && \
 # Build the application (with TypeScript now available)
 RUN npm run build
 
+RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
+RUN ls -la /app/src/modules/ || echo "Source missing"
+RUN ls -la /app/.medusa/server/src/modules/approval/
+RUN ls -la /app/.medusa/server/src/links/
+
+
 # ===========================================
 # Stage 3: Production Runtime
 # ===========================================
