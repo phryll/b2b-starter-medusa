@@ -66,9 +66,6 @@ COPY --from=deps /app/package.json ./
 # Copy application source
 COPY . ./
 
-# Verify TypeScript is available before building
-RUN which tsc && tsc --version
-
 # Create/override health endpoint (AFTER source copy, BEFORE build)
 RUN mkdir -p /app/src/api/health && \
     echo 'import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";' > /app/src/api/health/route.ts && \
