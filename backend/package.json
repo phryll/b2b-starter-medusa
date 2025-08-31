@@ -1,6 +1,7 @@
 {
   "name": "medusa-b2b-starter",
   "version": "0.0.1",
+  "type": "commonjs",
   "description": "A starter for Medusa B2B projects.",
   "author": "Medusa (https://medusajs.com)",
   "license": "MIT",
@@ -13,7 +14,7 @@
     "medusa"
   ],
   "scripts": {
-    "build": "medusa build",
+    "build": "NODE_OPTIONS='--experimental-modules' medusa build",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "start": "medusa start",
     "dev": "medusa develop",
@@ -37,7 +38,8 @@
     "awilix": "^8.0.1",
     "pg": "^8.13.0",
     "zod": "3.22.4",
-    "zod-validation-error": "4.0.1"
+    "zod-validation-error": "4.0.1",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@medusajs/test-utils": "2.8.8-snapshot-20250714090316",

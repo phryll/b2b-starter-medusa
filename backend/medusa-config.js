@@ -8,8 +8,6 @@ const APPROVAL_MODULE = "approval";
 
 loadEnv(process.env.NODE_ENV || "production", process.cwd());
 
-const dotenv = require("dotenv")
-dotenv.config()
 
 // Validate required environment variables
 const requiredEnvVars = [

@@ -78,12 +78,6 @@ RUN mkdir -p /app/src/api/health && \
     echo '};' >> /app/src/api/health/route.ts
 
 # Build the application (with TypeScript now available)
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-ENV PGSSLMODE=disable
-ENV DATABASE_URL="postgres://dummy:dummy@localhost:5432/dummy"
-ENV REDIS_URL="redis://localhost:6379"
-ENV JWT_SECRET="dummysecret"
-ENV COOKIE_SECRET="dummycookiesecret"
 RUN npm run build
 
 # ===========================================
@@ -141,8 +135,6 @@ USER nodejs
 
 EXPOSE 3000
 
-# Log the DATABASE_URL at runtime
-RUN echo "DATABASE_URL at runtime: ${DATABASE_URL}"
 
 # Health check
 HEALTHCHECK --interval=30s \
@@ -153,8 +145,3 @@ HEALTHCHECK --interval=30s \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/startup.sh"]
-
-ENV DATABASE_URL="postgres://dummy:dummy@localhost:5432/dummy"
-ENV REDIS_URL="redis://localhost:6379"
-ENV JWT_SECRET="dummysecret"
-ENV COOKIE_SECRET="dummycookiesecret"

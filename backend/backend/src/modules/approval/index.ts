@@ -1,0 +1,1 @@
+export const APPROVAL_MODULE = "approval";
