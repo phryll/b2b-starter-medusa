@@ -34,7 +34,7 @@ COPY package.json ./
 # Clean install with correct dependencies
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 RUN rm -rf node_modules package-lock.json && \
-    npm install --legacy-peer-deps
+    npm install --legacy-peer-deps --include=dev
 
 # ===========================================
 # Stage 2: Application Build
@@ -57,15 +57,11 @@ RUN apk add --no-cache \
     pixman-dev \
     pangomm-dev \
     libjpeg-turbo-dev \
-    freetype-dev \
-    typescript
+    freetype-dev
 
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
-
-# Ensure TypeScript is available locally too
-RUN npm install typescript @types/node --save-dev --legacy-peer-deps --no-optional
 
 # Copy application source
 COPY . ./
@@ -83,6 +79,9 @@ RUN mkdir -p /app/src/api/health && \
 
 # Build the application (with TypeScript now available)
 RUN npm run build
+
+# Verify build worked
+RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
 
 RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
 RUN ls -la /app/src/modules/ || echo "Source missing"
