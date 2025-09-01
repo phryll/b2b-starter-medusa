@@ -73,4 +73,13 @@ module.exports = defineConfig({
       resolve: "@medusajs/medusa/workflow-engine-inmemory",
     },
   },
+  plugins: [
+    {
+      resolve: "@medusajs/admin",
+      /** @type {import('@medusajs/admin').PluginOptions} */
+      options: {
+        path: "app",
+      },
+    },
+  ],
 });
