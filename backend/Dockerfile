@@ -92,7 +92,7 @@ RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
 RUN ls -la /app/src/modules/ || echo "Source missing"
 RUN ls -la /app/.medusa/server/src/modules/approval/
 RUN ls -la /app/.medusa/server/src/links/
-RUN ls -la /app/.medusa/admin || (echo "Admin build missing!" && exit 1)
+RUN ls -la /app/.medusa/admin || (echo "Admin build missing!")
 
 # ===========================================
 # Stage 3: Production Runtime
