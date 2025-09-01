@@ -159,7 +159,7 @@ EXPOSE 9000
 
 # Use shell form so $PORT is respected at runtime
 HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=10 \
-  CMD-SHELL curl -f http://localhost:${PORT:-9000}/health || exit 1
+  CMD curl -f http://localhost:${PORT:-9000}/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/startup.sh"]
