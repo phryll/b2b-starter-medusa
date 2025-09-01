@@ -30,7 +30,8 @@ module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL || "postgres://dummy:dummy@localhost:5432/dummy?sslmode=disable", // Fallback for build
     database_extra: {
-      ssl: false  // Force SSL off
+      ssl: false,  // Force SSL off
+      rejectUnauthorized: false
     },
     redisUrl: process.env.REDIS_URL || "redis://localhost:6379", // Fallback for build
     workerMode: process.env.WORKER_MODE || "shared",
