@@ -1,7 +1,6 @@
 {
   "name": "medusa-b2b-starter",
   "version": "0.0.1",
-  "type": "commonjs",
   "description": "A starter for Medusa B2B projects.",
   "author": "Medusa (https://medusajs.com)",
   "license": "MIT",
@@ -64,5 +63,5 @@
   },
   "engines": {
     "node": ">=20"
-  },
+  }
 }
