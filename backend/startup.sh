@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================="
-echo "Medusa B2B Starter - Starting Up (NPM)"
+echo "Medusa B2B Starter - Starting Up (Yarn)"
 echo "========================================="
 
 # SSL environment variables
@@ -62,9 +62,9 @@ echo "Testing database connection..."
 if [ -n "$DATABASE_URL" ]; then
     DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
     DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
-    
+   
     echo "Connecting to database at $DB_HOST:$DB_PORT"
-    
+   
     for i in {1..60}; do
         if pg_isready -h "$DB_HOST" -p "$DB_PORT" 2>/dev/null; then
             echo "✓ Database is ready!"
@@ -73,7 +73,7 @@ if [ -n "$DATABASE_URL" ]; then
         echo "Waiting for database... attempt $i/60"
         sleep 3
     done
-    
+   
     # Test actual connection
     if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" 2>/dev/null; then
         echo "❌ Database connection failed after 3 minutes"
@@ -97,10 +97,10 @@ Connection: close
 {"status":"starting","stage":"migrating"}
 EOF
 
-# Run migrations with retry logic (using npm instead of yarn)
+# Run migrations with retry logic (using yarn instead of npm)
 echo "Running database migrations..."
 for i in {1..3}; do
-    if npx medusa db:migrate; then
+    if yarn medusa db:migrate; then
         echo "✓ Migrations completed successfully"
         break
     else
@@ -123,9 +123,9 @@ Connection: close
 {"status":"starting","stage":"seeding"}
 EOF
 
-# Seed data if needed (using npm instead of yarn)
+# Seed data if needed (using yarn instead of npm)
 echo "Seeding database..."
-npm run seed 2>/dev/null || echo "⚠️  Seeding skipped or already done"
+yarn seed 2>/dev/null || echo "⚠️  Seeding skipped or already done"
 
 # Update health response
 cat > /tmp/health_response.txt << EOF
@@ -144,6 +144,6 @@ cleanup_temp_server
 # Give a moment for port to be released
 sleep 2
 
-# Start Medusa server (using npx instead of yarn)
+# Start Medusa server (using yarn instead of npx)
 echo "🚀 Starting Medusa server on port ${PORT}..."
-exec npx medusa start
+exec yarn start
