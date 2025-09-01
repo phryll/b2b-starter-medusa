@@ -32,11 +32,9 @@ module.exports = defineConfig({
     database_type: "postgres",
     databaseDriverOptions: {
       connection: {
-        ssl: {
-          rejectUnauthorized: false
-        }
+        ssl: false  // This completely disables SSL
       }
-     },   
+    },   
     database_extra: {
       ssl: false,  // Force SSL off
       rejectUnauthorized: false
