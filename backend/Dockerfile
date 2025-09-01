@@ -34,8 +34,8 @@ COPY package.json ./
 
 # Clean install with correct dependencies
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-RUN rm -rf node_modules yarn.lock && \
-    yarn install --frozen-lockfile --ignore-engines
+RUN rm -rf node_modules package-lock.json && \
+    npm install --legacy-peer-deps --include=dev
 
 # RUN npm ls zod || echo "Zod version check"
 # RUN npm ls react || echo "react version check"
