@@ -100,9 +100,9 @@ RUN ls -la /app/.medusa/server/src/links/
 # Admin build stage
 FROM node:20-alpine AS admin-build
 WORKDIR /app/admin
-COPY admin/package.json admin/package-lock.json ./
+COPY src/admin/package.json src/admin/package-lock.json ./
 RUN npm install
-COPY admin ./
+COPY src/admin/. ./
 RUN npm run build
 
 
