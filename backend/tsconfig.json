@@ -12,7 +12,7 @@
     "declaration": false,
     "sourceMap": false,
     "noEmit": false,
-    "incremental": false
+    "incremental": false,
     "inlineSourceMap": true,
     "outDir": "./.medusa/server",
     "rootDir": "./",

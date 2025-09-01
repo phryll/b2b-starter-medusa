@@ -106,7 +106,7 @@ ENV MIKRO_ORM_SSL=false
 ENV MIKRO_ORM_REJECT_UNAUTHORIZED=false
 
 # Set port explicitly
-ENV PORT=3001
+ENV PORT=9000
 
 # Install runtime dependencies
 RUN apk add --no-cache \

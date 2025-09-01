@@ -58,7 +58,7 @@ services:
       COOKIE_SECRET: fvYJhZmUuMRcdjjZi2+OHK+xK0Fqsr9KMA2hLqcqEo8=
       MEDUSA_ADMIN_ONBOARDING_TYPE: default
       NODE_ENV: production
-      PORT: 3000
+      PORT: 9000
       WORKER_MODE: shared
       NODE_OPTIONS: "--max-old-space-size=1536"
       STORE_CORS: "*"
@@ -71,7 +71,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "9000:3000"  # Changed external port to 9000 to avoid conflict with Dokploy
+      - "9000:9000"  # Changed external port to 9000 to avoid conflict with Dokploy
     restart: unless-stopped
     deploy:
       resources:
