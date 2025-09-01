@@ -29,7 +29,7 @@
     "@medusajs/js-sdk": "2.8.8-snapshot-20250714090316",
     "@medusajs/medusa": "2.8.8-snapshot-20250714090316",
     "@medusajs/workflows-sdk": "2.8.8-snapshot-20250714090316",
-    "@medusajs/ui": "4.0.14",
+    "@medusajs/ui": "4.0.18-snapshot-20250714090316",
     "@mikro-orm/core": "6.4.3",
     "@mikro-orm/knex": "6.4.3",
     "@mikro-orm/migrations": "6.4.3",

@@ -26,7 +26,7 @@
     "@medusajs/icons": "2.8.8-snapshot-20250714090316",
     "@medusajs/js-sdk": "2.8.8-snapshot-20250714090316",
     "@medusajs/types": "2.8.8-snapshot-20250714090316",
-    "@medusajs/ui": "4.0.14",
+    "@medusajs/ui": "4.0.18-snapshot-20250714090316",
     "@paypal/paypal-js": "^5.0.6",
     "@paypal/react-paypal-js": "^7.8.1",
     "@radix-ui/react-dialog": "^1.1.1",
