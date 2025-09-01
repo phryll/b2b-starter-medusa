@@ -134,10 +134,10 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 # Copy built application from builder
-COPY --from=builder --chown=nodejs:nodejs /app ./
+COPY --from=build --chown=nodejs:nodejs /app ./
 
-COPY --from=builder /app/.medusa/admin /app/.medusa/admin
-COPY --from=builder /app /app
+COPY --from=build /app/.medusa/admin /app/.medusa/admin
+COPY --from=build /app /app
 
 # Create required directories
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
