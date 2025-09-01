@@ -20,7 +20,7 @@ RUN corepack enable
 # Copy package.json and yarn.lock, then install dependencies
 COPY package.json ./
 COPY yarn.lock* ./
-RUN yarn install && \
+RUN yarn install --force && \
     yarn global add typescript
 
 # Copy source code (no build during Docker build)

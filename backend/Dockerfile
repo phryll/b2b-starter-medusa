@@ -38,7 +38,7 @@ COPY yarn.lock* ./
 # Clean install with correct dependencies
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 RUN rm -rf node_modules yarn.lock && \
-    yarn install
+    yarn install --force
 
 # ===========================================
 # Stage 2: Application Build
