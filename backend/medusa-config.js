@@ -29,6 +29,14 @@ if (!isBuilding) {
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL || "postgres://dummy:dummy@localhost:5432/dummy?sslmode=disable", // Fallback for build
+    database_type: "postgres",
+    databaseDriverOptions: {
+      connection: {
+        ssl: {
+          rejectUnauthorized: false
+        }
+      }
+     },   
     database_extra: {
       ssl: false,  // Force SSL off
       rejectUnauthorized: false
