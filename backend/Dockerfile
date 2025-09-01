@@ -37,9 +37,9 @@ ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 RUN rm -rf node_modules package-lock.json && \
     npm install --legacy-peer-deps --include=dev
 
-RUN npm ls zod || echo "Zod version check"
-RUN npm ls react || echo "react version check"
-RUN npm dedupe
+# RUN npm ls zod || echo "Zod version check"
+# RUN npm ls react || echo "react version check"
+# RUN npm dedupe
 
 # ===========================================
 # Stage 2: Application Build
