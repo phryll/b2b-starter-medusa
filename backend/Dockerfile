@@ -48,10 +48,6 @@ RUN npm dedupe
 FROM node:20-alpine AS build
 WORKDIR /app
 ARG NODE_ENV
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
-COPY . .
-RUN yarn build  # this generates .medusa/admin/index.html etc.
 
 
 
@@ -138,10 +134,10 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 # Copy built application from builder
-COPY --from=build --chown=nodejs:nodejs /app ./
+COPY --from=builder --chown=nodejs:nodejs /app ./
 
-COPY --from=build /app/.medusa/admin /app/.medusa/admin
-COPY --from=build /app /app
+COPY --from=builder /app/.medusa/admin /app/.medusa/admin
+COPY --from=builder /app /app
 
 # Create required directories
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \

@@ -10,6 +10,8 @@ loadEnv(process.env.NODE_ENV || "production", process.cwd());
 // Only validate environment variables at runtime, not during build
 const isBuilding = process.argv.includes('build') || process.env.MEDUSA_BUILD === 'true';
 
+const disableAdmin = process.env.ADMIN_DISABLED === "true" || false;
+
 if (!isBuilding) {
   // Validate required environment variables only at runtime
   const requiredEnvVars = [
@@ -48,6 +50,11 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET || "build-time-dummy-secret",
       cookieSecret: process.env.COOKIE_SECRET || "build-time-dummy-secret",
     },
+  },
+  admin: {
+    disable: disableAdmin,
+    serve: true,          // always serve the built admin
+    outDir: ".medusa/admin"
   },
   modules: {
     [COMPANY_MODULE]: {
