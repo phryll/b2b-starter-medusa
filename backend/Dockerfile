@@ -138,7 +138,7 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 # Copy built application from builder
-COPY --from=builder --chown=nodejs:nodejs /app ./
+COPY --from=build --chown=nodejs:nodejs /app ./
 
 COPY --from=build /app/.medusa/admin /app/.medusa/admin
 COPY --from=build /app /app
