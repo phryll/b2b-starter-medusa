@@ -67,10 +67,6 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-
-RUN npm install @medusajs/medusa@latest @medusajs/medusa-cli@latest --legacy-peer-deps
-
-
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
