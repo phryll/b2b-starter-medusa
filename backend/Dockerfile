@@ -1,5 +1,5 @@
 # ===========================================
-# Backend Dockerfile - NPM Version (Simpler)
+# Backend Dockerfile - Yarn Version
 # ===========================================
 
 # ===========================================
@@ -11,7 +11,7 @@ ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 ENV PORT=9000
 
-# Install ALL system dependencies Medusa needs
+# Install ALL system dependencies Medusa needs (removed npm, using yarn via corepack)
 RUN apk add --no-cache \
     python3 \
     make \
@@ -26,30 +26,26 @@ RUN apk add --no-cache \
     pixman-dev \
     pangomm-dev \
     libjpeg-turbo-dev \
-    freetype-dev \
-    npm
+    freetype-dev
 
-# Copy only package.json (ignore yarn.lock to force npm usage)
+# Enable corepack for yarn 4.4.0
+RUN corepack enable
+
+# Copy package.json and yarn.lock
 COPY package.json ./
+COPY yarn.lock* ./
 
 # Clean install with correct dependencies
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-RUN rm -rf node_modules package-lock.json && \
-    npm install --legacy-peer-deps --include=dev
-
-# RUN npm ls zod || echo "Zod version check"
-# RUN npm ls react || echo "react version check"
-# RUN npm dedupe
+RUN rm -rf node_modules yarn.lock && \
+    yarn install --frozen-lockfile
 
 # ===========================================
 # Stage 2: Application Build
 # ===========================================
-# --- build admin before runtime ---
 FROM node:20-alpine AS build
 WORKDIR /app
 ARG NODE_ENV
-
-
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -67,9 +63,13 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
+# Enable corepack
+RUN corepack enable
+
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
+COPY --from=deps /app/yarn.lock* ./
 
 # Copy application source
 COPY . ./
@@ -82,8 +82,8 @@ RUN mkdir -p /app/src/api/health && \
     echo '  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString(), uptime: process.uptime() });' >> /app/src/api/health/route.ts && \
     echo '};' >> /app/src/api/health/route.ts
 
-# Build the application (with TypeScript now available)
-RUN npm run build
+# Build the application with yarn
+RUN yarn build
 
 # Verify build worked
 RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
@@ -112,7 +112,7 @@ ENV MIKRO_ORM_REJECT_UNAUTHORIZED=false
 # Set port explicitly
 ENV PORT=9000
 
-# Install runtime dependencies
+# Install runtime dependencies (removed npm, using yarn via corepack)
 RUN apk add --no-cache \
     postgresql-client \
     curl \
@@ -126,8 +126,10 @@ RUN apk add --no-cache \
     giflib \
     pixman \
     libjpeg-turbo \
-    freetype \
-    npm
+    freetype
+
+# Enable corepack
+RUN corepack enable
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -136,12 +138,11 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy built application from builder
 COPY --from=build --chown=nodejs:nodejs /app ./
 
-
 # Create required directories
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
     chown -R nodejs:nodejs /app
 
-# Copy startup script (modified for npm)
+# Copy startup script (modified for yarn)
 COPY --chown=nodejs:nodejs startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh
 

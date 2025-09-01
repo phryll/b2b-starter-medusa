@@ -1,5 +1,5 @@
 # ===========================================
-# Storefront Dockerfile - Simple Runtime Build
+# Storefront Dockerfile - Yarn Version
 # ===========================================
 FROM node:20-alpine
 WORKDIR /app
@@ -14,12 +14,14 @@ RUN apk add --no-cache \
     bash \
     tini
 
-# Copy package.json and install ALL dependencies (dev + production)
-COPY package.json ./
-RUN npm install --legacy-peer-deps && \
-    npm install -g typescript && \
-    npm install typescript @types/node --save-dev --legacy-peer-deps
+# Enable corepack for yarn 4.4.0
+RUN corepack enable
 
+# Copy package.json and yarn.lock, then install dependencies
+COPY package.json ./
+COPY yarn.lock* ./
+RUN yarn install && \
+    yarn global add typescript
 
 # Copy source code (no build during Docker build)
 COPY . ./
@@ -31,7 +33,6 @@ RUN echo 'module.exports = {' > next.config.js && \
     echo '  images: { unoptimized: true },' >> next.config.js && \
     echo '  output: "standalone"' >> next.config.js && \
     echo '}' >> next.config.js
-
 
 COPY wait-for-backend.sh .
 RUN chmod +x wait-for-backend.sh
@@ -49,5 +50,4 @@ HEALTHCHECK --interval=30s --timeout=15s --start-period=300s --retries=10 \
     CMD curl -f http://localhost:3001/ || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-
-CMD ["sh", "-c", "./wait-for-backend.sh && npm run build && npm start"]
+CMD ["sh", "-c", "./wait-for-backend.sh && yarn build && yarn start"]
