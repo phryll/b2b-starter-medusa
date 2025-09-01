@@ -1,14 +1,15 @@
 # ===========================================
 # Backend Dockerfile - NPM Version (Simpler)
 # ===========================================
-ARG NODE_ENV=production
 
 # ===========================================
 # Stage 1: Dependencies Installation
 # ===========================================
 FROM node:20-alpine AS deps
 WORKDIR /app
-ARG NODE_ENV
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+ENV PORT=9000
 
 # Install ALL system dependencies Medusa needs
 RUN apk add --no-cache \
@@ -43,9 +44,16 @@ RUN npm dedupe
 # ===========================================
 # Stage 2: Application Build
 # ===========================================
-FROM node:20-alpine AS builder
+# --- build admin before runtime ---
+FROM node:20-alpine AS build
 WORKDIR /app
 ARG NODE_ENV
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile
+COPY . .
+RUN yarn build  # this generates .medusa/admin/index.html etc.
+
+
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -132,6 +140,9 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy built application from builder
 COPY --from=builder --chown=nodejs:nodejs /app ./
 
+COPY --from=build /app/.medusa/admin /app/.medusa/admin
+COPY --from=build /app /app
+
 # Create required directories
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
     chown -R nodejs:nodejs /app
@@ -143,15 +154,12 @@ RUN chmod +x /app/startup.sh
 # Switch to non-root user
 USER nodejs
 
-EXPOSE 3001
+# Ensure container advertises correct port
+EXPOSE 9000
 
-
-# Health check
-HEALTHCHECK --interval=30s \
-            --timeout=10s \
-            --start-period=180s \
-            --retries=10 \
-            CMD curl -f http://localhost:3001/health || exit 1
+# Use shell form so $PORT is respected at runtime
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=10 \
+  CMD-SHELL curl -f http://localhost:${PORT:-9000}/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/app/startup.sh"]
