@@ -28,7 +28,7 @@ if (!isBuilding) {
 
 module.exports = defineConfig({
   projectConfig: {
-    databaseUrl: process.env.DATABASE_URL || "postgres://dummy:dummy@localhost:5432/dummy", // Fallback for build
+    databaseUrl: process.env.DATABASE_URL || "postgres://dummy:dummy@localhost:5432/dummy?sslmode=disable", // Fallback for build
     redisUrl: process.env.REDIS_URL || "redis://localhost:6379", // Fallback for build
     workerMode: process.env.WORKER_MODE || "shared",
     http: {
