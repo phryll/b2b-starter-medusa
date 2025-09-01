@@ -93,18 +93,6 @@ RUN ls -la /app/src/modules/ || echo "Source missing"
 RUN ls -la /app/.medusa/server/src/modules/approval/
 RUN ls -la /app/.medusa/server/src/links/
 
-# ===========================================
-# Stage 2.5: Admin Build
-# ===========================================
-
-# Admin build stage
-FROM node:20-alpine AS admin-build
-WORKDIR /app/admin
-COPY src/admin/package.json src/admin/package-lock.json ./
-RUN npm install
-COPY src/admin/. ./
-RUN npm run build
-
 
 # ===========================================
 # Stage 3: Production Runtime
@@ -147,8 +135,6 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Copy built application from builder
 COPY --from=build --chown=nodejs:nodejs /app ./
-COPY --from=admin-build /app/admin/build /app/.medusa/admin
-RUN chown -R nodejs:nodejs /app/.medusa/admin
 
 
 # Create required directories
