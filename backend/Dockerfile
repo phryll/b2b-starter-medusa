@@ -86,6 +86,7 @@ COPY --from=deps /app/package.json ./
 # Copy application source
 COPY . ./
 
+RUN chmod +x ./fix-zod-imports.sh && ./fix-zod-imports.sh
 
 # Create utils if they don't exist
 RUN mkdir -p ./src/utils && \
