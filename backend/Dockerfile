@@ -86,7 +86,6 @@ COPY --from=deps /app/package.json ./
 # Copy application source
 COPY . ./
 
-RUN yarn add zod@3.21.4 --exact
 
 
 # Create/override health endpoint (AFTER source copy, BEFORE build)
