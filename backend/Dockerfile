@@ -59,7 +59,7 @@ WORKDIR /app
 ARG NODE_ENV
 
 # Install build dependencies
-RUN apk add --no-cache \
+RUN apk add \
     python3 \
     make \
     g++ \
@@ -95,7 +95,8 @@ RUN mkdir -p /app/src/api/health && \
     echo '};' >> /app/src/api/health/route.ts
 
 # Build the application with yarn
-RUN yarn build
+ENV DISABLE_ADMIN=true
+RUN yarn build --no-admin || yarn build
 
 # Verify build worked
 # RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
