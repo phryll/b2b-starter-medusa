@@ -14,8 +14,10 @@ RUN apk add --no-cache \
     bash \
     tini
 
-# Install Yarn Classic globally (more reliable than corepack)
-RUN npm install -g yarn@1.22.19
+# Disable corepack and install Yarn Classic
+RUN corepack disable && \
+    npm uninstall -g yarn || true && \
+    npm install -g yarn@1.22.19
 
 # Copy package files and install dependencies
 COPY package.json ./

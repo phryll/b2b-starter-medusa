@@ -28,8 +28,10 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-# Install Yarn Classic globally (more reliable than corepack)
-RUN npm install -g yarn@1.22.19
+# Disable corepack and install Yarn Classic
+RUN corepack disable && \
+    npm uninstall -g yarn || true && \
+    npm install -g yarn@1.22.19
 
 # Copy package files
 COPY package.json ./
@@ -66,8 +68,10 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-# Install Yarn Classic globally
-RUN npm install -g yarn@1.22.19
+# Disable corepack and install Yarn Classic
+RUN corepack disable && \
+    npm uninstall -g yarn || true && \
+    npm install -g yarn@1.22.19
 
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -130,8 +134,10 @@ RUN apk add --no-cache \
     libjpeg-turbo \
     freetype
 
-# Install Yarn Classic globally
-RUN npm install -g yarn@1.22.19
+# Disable corepack and install Yarn Classic
+RUN corepack disable && \
+    npm uninstall -g yarn || true && \
+    npm install -g yarn@1.22.19
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
