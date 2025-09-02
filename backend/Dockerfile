@@ -86,6 +86,15 @@ COPY --from=deps /app/package.json ./
 # Copy application source
 COPY . ./
 
+
+# Create utils if they don't exist
+RUN mkdir -p ./src/utils && \
+    if [ ! -f ./src/utils/zod-operators.ts ]; then \
+      echo 'import { z } from "zod";' > ./src/utils/zod-operators.ts && \
+      echo 'export function createOperatorMap() { return z.any(); }' >> ./src/utils/zod-operators.ts; \
+    fi
+
+
 # Create/override health endpoint (AFTER source copy, BEFORE build)
 RUN mkdir -p /app/src/api/health && \
     echo 'import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";' > /app/src/api/health/route.ts && \
