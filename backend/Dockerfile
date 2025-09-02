@@ -86,14 +86,47 @@ COPY --from=deps /app/package.json ./
 # Copy application source
 COPY . ./
 
-RUN chmod +x ./fix-zod-imports.sh && ./fix-zod-imports.sh
-
-# Create utils if they don't exist
+# Create the zod-operators utility file with proper implementation
 RUN mkdir -p ./src/utils && \
-    if [ ! -f ./src/utils/zod-operators.ts ]; then \
-      echo 'import { z } from "zod";' > ./src/utils/zod-operators.ts && \
-      echo 'export function createOperatorMap() { return z.any(); }' >> ./src/utils/zod-operators.ts; \
-    fi
+    cat > ./src/utils/zod-operators.ts << 'EOF'
+import { z } from "zod";
+
+export function createOperatorMap() {
+  return z.union([
+    z.any(),
+    z.object({
+      $eq: z.any().optional(),
+      $ne: z.any().optional(),
+      $in: z.any().optional(),
+      $nin: z.any().optional(),
+      $like: z.any().optional(),
+      $ilike: z.any().optional(),
+      $re: z.any().optional(),
+      $contains: z.any().optional(),
+      $gt: z.any().optional(),
+      $gte: z.any().optional(),
+      $lt: z.any().optional(),
+      $lte: z.any().optional(),
+    })
+  ]);
+}
+EOF
+
+# Fix all zod/v3 imports directly in the source files
+RUN find ./src -name "*.ts" -type f | while read file; do \
+      sed -i "s|from 'zod/v3'|from 'zod'|g" "$file" 2>/dev/null || true; \
+      sed -i 's|from "zod/v3"|from "zod"|g' "$file" 2>/dev/null || true; \
+    done
+
+# Check if any validators are importing createOperatorMap and fix the import path
+RUN find ./src/api -name "validators.ts" -type f | while read file; do \
+      if grep -q "createOperatorMap" "$file"; then \
+        # Remove any existing createOperatorMap import \
+        sed -i '/createOperatorMap/d' "$file"; \
+        # Add the correct import at the top of the file after the first import line \
+        sed -i '0,/^import/a import { createOperatorMap } from "@/utils/zod-operators";' "$file"; \
+      fi; \
+    done
 
 
 # Create/override health endpoint (AFTER source copy, BEFORE build)
