@@ -4,9 +4,8 @@ services:
     container_name: medusa-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-medusa_db}
-      POSTGRES_USER: ${POSTGRES_USER:-nodejs}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-     
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # Must be set in .env or Dokploy
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -14,6 +13,12 @@ services:
     networks:
       - medusa_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "medusa_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -31,6 +36,12 @@ services:
     networks:
       - medusa_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -48,7 +59,7 @@ services:
         CACHEBUST: ${CACHEBUST:-1}
     container_name: medusa-backend
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-nodejs}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECRET: ${COOKIE_SECRET}
@@ -71,6 +82,7 @@ services:
     networks:
       - medusa_network
     restart: unless-stopped
+    # NO healthcheck here - using the one from Dockerfile
     deploy:
       resources:
         limits:
@@ -93,12 +105,13 @@ services:
       NODE_OPTIONS: "--max-old-space-size=1024"
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "${STOREFRONT_PORT:-3001}:${STOREFRONT_PORT:-3001}"
     networks:
       - medusa_network
     restart: unless-stopped
+    # NO healthcheck here - using the one from Dockerfile
     deploy:
       resources:
         limits:

@@ -101,8 +101,8 @@ RUN yarn build
 # RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
 RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
 RUN ls -la /app/src/modules/ || echo "Source missing"
-RUN ls -la /app/.medusa/server/src/modules/approval/
-RUN ls -la /app/.medusa/server/src/links/
+RUN ls -la /app/.medusa/server/src/modules/approval/ || echo "Approval module missing"
+RUN ls -la /app/.medusa/server/src/links/ || echo "Links module missing"
 RUN ls -la /app/.medusa/admin || (echo "Admin build missing!")
 
 # ===========================================

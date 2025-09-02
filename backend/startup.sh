@@ -1,149 +1,198 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 echo "========================================="
 echo "Medusa B2B Starter - Starting Up (Yarn)"
 echo "========================================="
 
-# SSL environment variables
 export PGSSLMODE=disable
 export NODE_TLS_REJECT_UNAUTHORIZED=0
 export MIKRO_ORM_SSL=false
 export MIKRO_ORM_REJECT_UNAUTHORIZED=false
 
-# Set defaults from environment
 export NODE_ENV=${NODE_ENV:-production}
-export PORT=${PORT:-3000}
+export PORT=${PORT:-9000}
 export WORKER_MODE=${WORKER_MODE:-shared}
 
-echo "Configuration loaded from environment"
 echo "NODE_ENV: ${NODE_ENV}"
 echo "PORT: ${PORT}"
 echo "WORKER_MODE: ${WORKER_MODE}"
 echo ""
 
-# Create a simple health endpoint immediately
-echo "Creating immediate health endpoint..."
-cat > /tmp/health_response.txt << EOF
-HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Length: 45
-Connection: close
-
-{"status":"starting","stage":"initializing"}
-EOF
-
-# Start temporary health server using netcat
-start_temp_health_server() {
-    while true; do
-        cat /tmp/health_response.txt | nc -l -p 3000 -q 1 2>/dev/null || sleep 0.1
-    done
-}
-
-start_temp_health_server &
-TEMP_SERVER_PID=$!
-
-# Function to cleanup temporary server
-cleanup_temp_server() {
-    if [ ! -z "$TEMP_SERVER_PID" ]; then
-        kill $TEMP_SERVER_PID 2>/dev/null || true
-        pkill -f "nc -l -p 3000" 2>/dev/null || true
-    fi
-}
-
-# Ensure cleanup on exit
-trap cleanup_temp_server EXIT
-
-# Wait a moment for temp server to start
-sleep 2
-
-# Test database connection with better error handling
-echo "Testing database connection..."
-if [ -n "$DATABASE_URL" ]; then
-    DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
-    DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
-   
-    echo "Connecting to database at $DB_HOST:$DB_PORT"
-   
-    for i in {1..60}; do
-        if pg_isready -h "$DB_HOST" -p "$DB_PORT" 2>/dev/null; then
-            echo "✓ Database is ready!"
-            break
-        fi
-        echo "Waiting for database... attempt $i/60"
-        sleep 3
-    done
-   
-    # Test actual connection
-    if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" 2>/dev/null; then
-        echo "❌ Database connection failed after 3 minutes"
+# Robust URL parsing function
+parse_db_url() {
+    if [ -z "$DATABASE_URL" ]; then
+        echo "❌ DATABASE_URL not set"
         exit 1
     fi
-else
-    echo "❌ DATABASE_URL not set"
-    exit 1
-fi
-
-# Log DATABASE_URL for debugging
-echo "DATABASE_URL at startup: $DATABASE_URL"
-
-# Update health response
-cat > /tmp/health_response.txt << EOF
-HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Length: 42
-Connection: close
-
-{"status":"starting","stage":"migrating"}
-EOF
-
-# Run migrations with retry logic (using yarn instead of npm)
-echo "Running database migrations..."
-for i in {1..3}; do
-    if yarn medusa db:migrate; then
-        echo "✓ Migrations completed successfully"
-        break
-    else
-        echo "❌ Migration attempt $i failed"
-        if [ $i -eq 3 ]; then
-            echo "❌ All migration attempts failed"
-            exit 1
-        fi
-        sleep 10
+    
+    # Extract components more reliably
+    DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*://[^@]*@\([^:]*\):.*|\1|p')
+    DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*://[^@]*@[^:]*:\([0-9]*\)/.*|\1|p')
+    
+    if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ]; then
+        echo "❌ Failed to parse DATABASE_URL: $DATABASE_URL"
+        exit 1
     fi
-done
+    
+    echo "Parsed database: $DB_HOST:$DB_PORT"
+}
 
-# Update health response
-cat > /tmp/health_response.txt << EOF
-HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Length: 38
-Connection: close
+# Robust Redis URL parsing
+parse_redis_url() {
+    if [ -z "$REDIS_URL" ]; then
+        echo "❌ REDIS_URL not set"
+        exit 1
+    fi
+    
+    REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\):.*|\1|p')
+    REDIS_PORT=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([0-9]*\).*|\1|p')
+    
+    if [ -z "$REDIS_HOST" ]; then
+        REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\)|\1|p')
+        REDIS_PORT="6379"
+    fi
+    
+    if [ -z "$REDIS_HOST" ]; then
+        echo "❌ Failed to parse REDIS_URL: $REDIS_URL"
+        exit 1
+    fi
+    
+    echo "Parsed Redis: $REDIS_HOST:$REDIS_PORT"
+}
 
-{"status":"starting","stage":"seeding"}
+# Simple HTTP health endpoint without netcat conflicts
+create_health_endpoint() {
+    mkdir -p /tmp/health
+    cat > /tmp/health/index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head><title>Starting</title></head>
+<body>
+<h1>Medusa Backend Starting</h1>
+<p>Status: Initializing...</p>
+<script>setTimeout(function(){location.reload()}, 5000);</script>
+</body>
+</html>
 EOF
+}
 
-# Seed data if needed (using yarn instead of npm)
-echo "Seeding database..."
-yarn seed 2>/dev/null || echo "⚠️  Seeding skipped or already done"
+# Test database connectivity with proper error handling
+test_database() {
+    parse_db_url
+    
+    echo "Testing database connection..."
+    for i in $(seq 1 60); do
+        if pg_isready -h "$DB_HOST" -p "$DB_PORT" -t 5 2>/dev/null; then
+            echo "✓ Database connection test passed"
+            # Additional test: try actual connection
+            if PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+               psql -h "$DB_HOST" -p "$DB_PORT" -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+               -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" -c "SELECT 1;" >/dev/null 2>&1; then
+                echo "✓ Database accepts connections"
+                return 0
+            else
+                echo "Database port open but not accepting connections yet..."
+            fi
+        else
+            echo "Waiting for database... attempt $i/60 ($(date))"
+        fi
+        sleep 5
+    done
+    
+    echo "❌ Database not ready after 5 minutes"
+    return 1
+}
 
-# Update health response
-cat > /tmp/health_response.txt << EOF
-HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Length: 37
-Connection: close
+# Test Redis connectivity
+test_redis() {
+    parse_redis_url
+    
+    echo "Testing Redis connection..."
+    for i in $(seq 1 30); do
+        if nc -z "$REDIS_HOST" "$REDIS_PORT" 2>/dev/null; then
+            echo "✓ Redis connection test passed"
+            return 0
+        fi
+        echo "Waiting for Redis... attempt $i/30"
+        sleep 2
+    done
+    
+    echo "❌ Redis not ready after 1 minute"
+    return 1
+}
 
-{"status":"starting","stage":"starting"}
-EOF
+# Run migrations with retry logic
+run_migrations() {
+    echo "Running database migrations..."
+    
+    for attempt in $(seq 1 3); do
+        echo "Migration attempt $attempt/3..."
+        if yarn medusa db:migrate 2>&1; then
+            echo "✓ Migrations completed successfully"
+            return 0
+        else
+            echo "❌ Migration attempt $attempt failed"
+            if [ $attempt -lt 3 ]; then
+                echo "Retrying in 15 seconds..."
+                sleep 15
+            fi
+        fi
+    done
+    
+    echo "❌ All migration attempts failed"
+    return 1
+}
 
-# Stop temporary server before starting real server
-echo "Stopping temporary health server..."
-cleanup_temp_server
+# Seed database
+seed_database() {
+    echo "Seeding database..."
+    if yarn seed 2>/dev/null; then
+        echo "✓ Database seeded successfully"
+    else
+        echo "⚠️ Seeding skipped or failed (this may be normal)"
+    fi
+}
 
-# Give a moment for port to be released
-sleep 2
+# Check if port is available
+check_port() {
+    if nc -z localhost "$PORT" 2>/dev/null; then
+        echo "❌ Port $PORT is already in use"
+        exit 1
+    fi
+}
 
-# Start Medusa server (using yarn instead of npx)
-echo "🚀 Starting Medusa server on port ${PORT}..."
-exec yarn start
+# Main execution
+main() {
+    create_health_endpoint
+    check_port
+    
+    if ! test_database; then
+        exit 1
+    fi
+    
+    if ! test_redis; then
+        exit 1
+    fi
+    
+    if ! run_migrations; then
+        exit 1
+    fi
+    
+    seed_database
+        
+    # Start the server
+    exec yarn start
+}
+
+# Error handler
+error_handler() {
+    echo "❌ Startup failed at line $1"
+    echo "Container will restart automatically..."
+    exit 1
+}
+
+trap 'error_handler $LINENO' ERR
+
+# Run main function
+main "$@"
