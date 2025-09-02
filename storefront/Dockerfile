@@ -21,7 +21,6 @@ RUN corepack disable && \
 
 # Copy package files and install dependencies
 COPY package.json ./
-COPY yarn.lock* ./
 
 # Configure for reliable network operations
 ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
