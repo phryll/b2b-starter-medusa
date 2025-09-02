@@ -98,7 +98,7 @@ RUN mkdir -p /app/src/api/health && \
 RUN yarn build
 
 # Verify build worked
-RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
+# RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
 RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
 RUN ls -la /app/src/modules/ || echo "Source missing"
 RUN ls -la /app/.medusa/server/src/modules/approval/
