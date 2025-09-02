@@ -80,7 +80,7 @@ EOF
 build_admin_if_needed() {
     if [ ! -d ".medusa/admin" ] || [ -z "$(ls -A .medusa/admin 2>/dev/null)" ]; then
         echo "Admin UI not found, building now (this will take 5-10 minutes on first start)..."
-        yarn build:admin || echo "⚠️ Admin build failed, continuing without admin UI"
+        NODE_OPTIONS="--max-old-space-size=4086" yarn build:admin || echo "⚠️ Admin build failed, continuing without admin UI"
     else
         echo "✓ Admin UI already built"
     fi
