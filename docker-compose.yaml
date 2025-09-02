@@ -11,6 +11,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - medusa_network
     restart: unless-stopped
     deploy:
       resources:
@@ -31,6 +33,8 @@ services:
     container_name: medusa-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - medusa_network
     restart: unless-stopped
     deploy:
       resources:
@@ -74,6 +78,8 @@ services:
         condition: service_healthy
     ports:
       - "${BACKEND_PORT:-9000}:${BACKEND_PORT:-9000}"
+    networks:
+      - medusa_network
     restart: unless-stopped
     deploy:
       resources:
@@ -106,6 +112,8 @@ services:
         condition: service_healthy
     ports:
       - "${STOREFRONT_PORT:-3001}:${STOREFRONT_PORT:-3001}"
+    networks:
+      - medusa_network
     restart: unless-stopped
     deploy:
       resources:
@@ -119,3 +127,7 @@ services:
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  medusa_network:
+    driver: bridge

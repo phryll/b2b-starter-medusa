@@ -35,15 +35,22 @@ RUN corepack disable && \
 
 # Copy package files
 COPY package.json ./
+COPY .yarnrc ./
 
-# Configure for reliable network operations
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
+# Aggressive network settings for yarn
+ENV YARN_REGISTRY=https://registry.yarnpkg.com/
+ENV YARN_NETWORK_TIMEOUT=900000
+ENV YARN_CHILD_CONCURRENCY=1
+ENV YARN_NETWORK_CONCURRENCY=1
+NV YARN_CACHE_FOLDER=/tmp/.yarn-cache
 
-# Fresh install (don't rely on potentially incompatible yarn.lock)
-RUN --mount=type=cache,target=/tmp/.yarn-cache \
-    yarn install --cache-folder /tmp/.yarn-cache --network-timeout 600000
-
+# Install dependencies with maximum reliability settings
+RUN yarn config set registry https://registry.yarnpkg.com/ && \
+    yarn config set network-timeout 900000 && \
+    yarn config set child-concurrency 1 && \
+    yarn config set network-concurrency 1 && \
+    yarn config set disable-self-update-check true && \
+    yarn install --production=false --network-timeout 900000 --verbose
 # ===========================================
 # Stage 2: Application Build
 # ===========================================
