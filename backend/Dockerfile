@@ -59,7 +59,7 @@ WORKDIR /app
 ARG NODE_ENV
 
 # Install build dependencies
-RUN apk add \
+RUN apk add --no-cache \
     python3 \
     make \
     g++ \
