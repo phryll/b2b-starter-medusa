@@ -1,5 +1,5 @@
 # ===========================================
-# Storefront Dockerfile - Yarn Version
+# Storefront Dockerfile - Yarn Classic Version
 # ===========================================
 FROM node:20-alpine
 WORKDIR /app
@@ -14,13 +14,16 @@ RUN apk add --no-cache \
     bash \
     tini
 
-# Enable corepack for yarn 4.4.0
-RUN corepack enable
+# Install Yarn Classic globally (more reliable than corepack)
+RUN npm install -g yarn@1.22.19
 
-# Copy package.json and yarn.lock, then install dependencies
+# Copy package files and install dependencies
 COPY package.json ./
 COPY yarn.lock* ./
-RUN yarn install && \
+
+# Configure for reliable network operations
+ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
+RUN yarn install --network-timeout 300000 && \
     yarn global add typescript
 
 # Copy source code (no build during Docker build)

@@ -1,5 +1,5 @@
 # ===========================================
-# Backend Dockerfile - Yarn Version
+# Backend Dockerfile - Yarn Classic Version
 # ===========================================
 
 # ===========================================
@@ -11,7 +11,7 @@ ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 ENV PORT=9000
 
-# Install ALL system dependencies Medusa needs (removed npm, using yarn via corepack)
+# Install ALL system dependencies Medusa needs
 RUN apk add --no-cache \
     python3 \
     make \
@@ -28,17 +28,20 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-# Enable corepack for yarn 4.4.0
-RUN corepack enable
+# Install Yarn Classic globally (more reliable than corepack)
+RUN npm install -g yarn@1.22.19
 
-# Copy package.json and yarn.lock
+# Copy package files
 COPY package.json ./
 COPY yarn.lock* ./
 
-# Clean install with correct dependencies
+# Configure for reliable network operations
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-RUN rm -rf node_modules yarn.lock && \
-    yarn install
+ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
+
+# Clean install with network timeout
+RUN rm -rf node_modules && \
+    yarn install --frozen-lockfile --network-timeout 300000
 
 # ===========================================
 # Stage 2: Application Build
@@ -63,8 +66,8 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-# Enable corepack
-RUN corepack enable
+# Install Yarn Classic globally
+RUN npm install -g yarn@1.22.19
 
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -87,7 +90,6 @@ RUN yarn build
 
 # Verify build worked
 RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
-
 RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
 RUN ls -la /app/src/modules/ || echo "Source missing"
 RUN ls -la /app/.medusa/server/src/modules/approval/
@@ -112,7 +114,7 @@ ENV MIKRO_ORM_REJECT_UNAUTHORIZED=false
 # Set port explicitly
 ENV PORT=9000
 
-# Install runtime dependencies (removed npm, using yarn via corepack)
+# Install runtime dependencies
 RUN apk add --no-cache \
     postgresql-client \
     curl \
@@ -128,8 +130,8 @@ RUN apk add --no-cache \
     libjpeg-turbo \
     freetype
 
-# Enable corepack
-RUN corepack enable
+# Install Yarn Classic globally
+RUN npm install -g yarn@1.22.19
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -142,7 +144,7 @@ COPY --from=build --chown=nodejs:nodejs /app ./
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
     chown -R nodejs:nodejs /app
 
-# Copy startup script (modified for yarn)
+# Copy startup script
 COPY --chown=nodejs:nodejs startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh
 
