@@ -96,7 +96,7 @@ RUN mkdir -p /app/src/api/health && \
 
 # Build the application with yarn
 ENV DISABLE_ADMIN=true
-RUN yarn build --no-admin || yarn build
+RUN yarn build || yarn build
 
 # Verify build worked
 # RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)

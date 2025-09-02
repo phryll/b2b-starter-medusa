@@ -54,7 +54,7 @@ module.exports = defineConfig({
   },
   admin: {
     disable: disableAdmin,
-    serve: true,          // always serve the built admin
+    serve: !disableAdmin,          // Don't serve if disabled
     outDir: ".medusa/admin"
   },
   modules: {
