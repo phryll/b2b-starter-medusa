@@ -41,7 +41,8 @@ ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
 
 # Fresh install (don't rely on potentially incompatible yarn.lock)
-RUN yarn install --network-timeout 300000
+RUN --mount=type=cache,target=/tmp/.yarn-cache \
+    yarn install --cache-folder /tmp/.yarn-cache --network-timeout 600000
 
 # ===========================================
 # Stage 2: Application Build

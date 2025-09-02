@@ -24,7 +24,8 @@ COPY package.json ./
 
 # Configure for reliable network operations
 ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
-RUN yarn install --network-timeout 300000 && \
+RUN --mount=type=cache,target=/tmp/.yarn-cache \
+    yarn install --cache-folder /tmp/.yarn-cache --network-timeout 600000 && \
     yarn global add typescript
 
 # Copy source code (no build during Docker build)
