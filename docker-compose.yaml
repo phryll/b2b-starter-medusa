@@ -59,6 +59,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${BACKEND_PORT:-9000}
       WORKER_MODE: ${WORKER_MODE:-shared}
+      NODE_OPTIONS: "--max-old-space-size=2564"
       STORE_CORS: ${STORE_CORS:-http://localhost:3001}
       ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
       AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
@@ -85,6 +86,7 @@ services:
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY}
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${STOREFRONT_PORT:-3001}
+      NODE_OPTIONS: "--max-old-space-size=1856"
     depends_on:
       backend:
         condition: service_started
