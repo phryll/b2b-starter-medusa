@@ -1,7 +1,7 @@
 import {
   createFindParams,
   createOperatorMap,
-} from "@/utils/zod-operators";
+} from "@medusajs/medusa/api/utils/validators";
 import { z } from "zod";
 
 export type AdminGetApprovalsType = z.infer<typeof AdminGetApprovals>;
