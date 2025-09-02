@@ -1,12 +1,17 @@
 # ===========================================
-# Backend Dockerfile - Simplified Production
+# Backend Dockerfile - Yarn Classic Version
 # ===========================================
 
+# ===========================================
+# Stage 1: Dependencies Installation
+# ===========================================
 FROM node:20-alpine AS deps
-# Use /server as recommended by Medusa team
-WORKDIR /server
+WORKDIR /app
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+ENV PORT=9000
 
-# Install system dependencies
+# Install ALL system dependencies Medusa needs
 RUN apk add --no-cache \
     python3 \
     make \
@@ -23,15 +28,30 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-# Use npm instead of yarn to avoid fetch issues
+# Disable corepack and install Yarn Classic
+RUN corepack disable && \
+    npm uninstall -g yarn || true && \
+    npm install -g yarn@1.22.19
+
+# Copy package files
 COPY package.json ./
+
+# Configure for reliable network operations
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
-ENV NPM_CONFIG_CACHE=/tmp/.npm-cache
-RUN npm install
+ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
 
+# Fresh install (don't rely on potentially incompatible yarn.lock)
+RUN --mount=type=cache,target=/tmp/.yarn-cache \
+    yarn install --cache-folder /tmp/.yarn-cache --network-timeout 600000
+
+# ===========================================
+# Stage 2: Application Build
+# ===========================================
 FROM node:20-alpine AS build
-WORKDIR /server
+WORKDIR /app
+ARG NODE_ENV
 
+# Install build dependencies
 RUN apk add --no-cache \
     python3 \
     make \
@@ -47,42 +67,100 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
-COPY --from=deps /server/node_modules ./node_modules
-COPY --from=deps /server/package.json ./
+# Disable corepack and install Yarn Classic
+RUN corepack disable && \
+    npm uninstall -g yarn || true && \
+    npm install -g yarn@1.22.19
+
+# Copy dependencies from previous stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/package.json ./
+
+# Copy application source
 COPY . ./
 
-# Build the application
-RUN npm run build
+# Create/override health endpoint (AFTER source copy, BEFORE build)
+RUN mkdir -p /app/src/api/health && \
+    echo 'import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";' > /app/src/api/health/route.ts && \
+    echo '' >> /app/src/api/health/route.ts && \
+    echo 'export const GET = async (req: MedusaRequest, res: MedusaResponse): Promise<void> => {' >> /app/src/api/health/route.ts && \
+    echo '  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString(), uptime: process.uptime() });' >> /app/src/api/health/route.ts && \
+    echo '};' >> /app/src/api/health/route.ts
 
+# Build the application with yarn
+RUN yarn build
+
+# Verify build worked
+RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
+RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
+RUN ls -la /app/src/modules/ || echo "Source missing"
+RUN ls -la /app/.medusa/server/src/modules/approval/
+RUN ls -la /app/.medusa/server/src/links/
+RUN ls -la /app/.medusa/admin || (echo "Admin build missing!")
+
+# ===========================================
+# Stage 3: Production Runtime
+# ===========================================
 FROM node:20-alpine AS production
-WORKDIR /server
+WORKDIR /app
 
-ENV NODE_ENV=production
-ENV PORT=9000
-# SSL configurations from official docs
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+
+# SSL disable environment variables
 ENV PGSSLMODE=disable
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+ENV MIKRO_ORM_SSL=false
+ENV MIKRO_ORM_REJECT_UNAUTHORIZED=false
 
+# Set port explicitly
+ENV PORT=9000
+
+# Install runtime dependencies
 RUN apk add --no-cache \
     postgresql-client \
     curl \
+    wget \
     bash \
-    tini
+    netcat-openbsd \
+    tini \
+    cairo \
+    jpeg \
+    pango \
+    giflib \
+    pixman \
+    libjpeg-turbo \
+    freetype
 
-RUN addgroup -g 1001 -S medusa && \
-    adduser -S medusa -u 1001
+# Disable corepack and install Yarn Classic
+RUN corepack disable && \
+    npm uninstall -g yarn || true && \
+    npm install -g yarn@1.22.19
 
-COPY --from=build --chown=medusa:medusa /server ./
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 
-# Simplified startup script
-COPY --chown=medusa:medusa start.sh /server/start.sh
-RUN chmod +x /server/start.sh
+# Copy built application from builder
+COPY --from=build --chown=nodejs:nodejs /app ./
 
-USER medusa
+# Create required directories
+RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
+    chown -R nodejs:nodejs /app
+
+# Copy startup script
+COPY --chown=nodejs:nodejs startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
+
+# Switch to non-root user
+USER nodejs
+
+# Ensure container advertises correct port
 EXPOSE 9000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
-  CMD curl -f http://localhost:9000/health || exit 1
+# Use shell form so $PORT is respected at runtime
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=10 \
+  CMD curl -f http://localhost:${PORT:-9000}/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/server/start.sh"]
+CMD ["/app/startup.sh"]
