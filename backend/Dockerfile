@@ -27,7 +27,7 @@ RUN apk add --no-cache \
 COPY package.json ./
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV NPM_CONFIG_CACHE=/tmp/.npm-cache
-RUN npm install --only=production
+RUN npm install
 
 FROM node:20-alpine AS build
 WORKDIR /server
