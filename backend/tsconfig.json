@@ -25,8 +25,7 @@
     "noImplicitAny": false,
     "paths": {
       "@starter/types": ["./src/types"],
-      "@starter/types/*": ["./src/types/*"],
-      "@/utils/*": ["./src/utils/*"]
+      "@starter/types/*": ["./src/types/*"]
     }
   },
   "ts-node": {
