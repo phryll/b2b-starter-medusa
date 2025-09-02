@@ -66,7 +66,7 @@ EXPOSE 3001
 
 # Health check (more forgiving during initial build)
 HEALTHCHECK --interval=30s --timeout=15s --start-period=300s --retries=10 \
-    CMD curl -f http://localhost:3001/ || exit 1
+    CMD curl -f http://localhost:${PORT:-3001}/ || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "./wait-for-backend.sh && yarn build && yarn start"]
+CMD ["sh", "-c", "./wait-for-backend.sh && yarn build && yarn start -p ${PORT:-3001}"]
