@@ -42,14 +42,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
 
   backend:
     build:
@@ -83,14 +75,6 @@ services:
       - medusa_network
     restart: unless-stopped
     # NO healthcheck here - using the one from Dockerfile
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2.75G
-        reservations:
-          cpus: '1'
-          memory: 2G
 
   storefront:
     build:
@@ -112,14 +96,6 @@ services:
       - medusa_network
     restart: unless-stopped
     # NO healthcheck here - using the one from Dockerfile
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
 volumes:
   postgres_data:
