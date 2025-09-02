@@ -23,7 +23,7 @@ services:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nodejs -d medusa_db"]
+      test: ["CMD", "pg_isready -U nodejs -d medusa_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -93,7 +93,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-9000}/health"]  # Fixed port
       interval: 30s
       timeout: 10s
-      start_period: 180s
+      start_period: 480s
       retries: 10
 
   storefront:

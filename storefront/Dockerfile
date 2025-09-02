@@ -26,18 +26,18 @@ COPY package.json ./
 
 # Aggressive yarn network settings
 ENV YARN_REGISTRY=https://registry.yarnpkg.com/
-ENV YARN_NETWORK_TIMEOUT=900000
+ENV YARN_NETWORK_TIMEOUT=1800000 
 ENV YARN_CHILD_CONCURRENCY=1
 ENV YARN_NETWORK_CONCURRENCY=1
 
 ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
 
 RUN yarn config set registry https://registry.yarnpkg.com/ && \
-    yarn config set network-timeout 900000 && \
+    yarn config set network-timeout 1800000  && \
     yarn config set child-concurrency 1 && \
     yarn config set network-concurrency 1 && \
-    yarn install --network-timeout 900000
-    
+    yarn install --network-timeout 1800000 
+
 RUN --mount=type=cache,target=/tmp/.yarn-cache \
     yarn install --cache-folder /tmp/.yarn-cache --network-timeout 600000 && \
     yarn global add typescript

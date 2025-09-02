@@ -39,18 +39,18 @@ COPY .yarnrc ./
 
 # Aggressive network settings for yarn
 ENV YARN_REGISTRY=https://registry.yarnpkg.com/
-ENV YARN_NETWORK_TIMEOUT=900000
+ENV YARN_NETWORK_TIMEOUT=1800000 
 ENV YARN_CHILD_CONCURRENCY=1
 ENV YARN_NETWORK_CONCURRENCY=1
 ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
 
 # Install dependencies with maximum reliability settings
 RUN yarn config set registry https://registry.yarnpkg.com/ && \
-    yarn config set network-timeout 900000 && \
+    yarn config set network-timeout 1800000  && \
     yarn config set child-concurrency 1 && \
     yarn config set network-concurrency 1 && \
     yarn config set disable-self-update-check true && \
-    yarn install --production=false --network-timeout 900000 --verbose
+    yarn install --production=false --network-timeout 1800000  --verbose
 # ===========================================
 # Stage 2: Application Build
 # ===========================================
