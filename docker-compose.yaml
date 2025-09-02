@@ -6,7 +6,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-medusa_db}
       POSTGRES_USER: ${POSTGRES_USER:-nodejs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      # Remove POSTGRES_HOST_AUTH_METHOD in production for security
+     
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -22,11 +22,6 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-    healthcheck:
-      test: ["CMD", "pg_isready -U nodejs -d medusa_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -44,8 +39,6 @@ services:
         reservations:
           cpus: '0.25'
           memory: 128M
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -89,12 +82,6 @@ services:
         reservations:
           cpus: '0.5'
           memory: 768M
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-9000}/health"]  # Fixed port
-      interval: 30s
-      timeout: 10s
-      start_period: 480s
-      retries: 10
 
   storefront:
     build:
