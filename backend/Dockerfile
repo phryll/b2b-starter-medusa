@@ -35,15 +35,13 @@ RUN corepack disable && \
 
 # Copy package files
 COPY package.json ./
-COPY yarn.lock* ./
 
 # Configure for reliable network operations
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
 
-# Clean install with network timeout
-RUN rm -rf node_modules && \
-    yarn install --frozen-lockfile --network-timeout 300000
+# Fresh install (don't rely on potentially incompatible yarn.lock)
+RUN yarn install --network-timeout 300000
 
 # ===========================================
 # Stage 2: Application Build
@@ -76,7 +74,6 @@ RUN corepack disable && \
 # Copy dependencies from previous stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./
-COPY --from=deps /app/yarn.lock* ./
 
 # Copy application source
 COPY . ./
