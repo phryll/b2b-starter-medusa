@@ -42,7 +42,7 @@ ENV YARN_REGISTRY=https://registry.yarnpkg.com/
 ENV YARN_NETWORK_TIMEOUT=900000
 ENV YARN_CHILD_CONCURRENCY=1
 ENV YARN_NETWORK_CONCURRENCY=1
-NV YARN_CACHE_FOLDER=/tmp/.yarn-cache
+ENV YARN_CACHE_FOLDER=/tmp/.yarn-cache
 
 # Install dependencies with maximum reliability settings
 RUN yarn config set registry https://registry.yarnpkg.com/ && \
