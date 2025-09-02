@@ -2,26 +2,19 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: medusa-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-medusa_db}
-      POSTGRES_USER: ${POSTGRES_USER:-medusa}
+      POSTGRES_USER: ${POSTGRES_USER:-nodejs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      # Remove POSTGRES_HOST_AUTH_METHOD in production for security
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+    networks:
+      - medusa_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nodejs -d medusa_db"]
+      test: ["CMD", "pg_isready -U ${POSTGRES_USER:-nodejs} -d ${POSTGRES_DB:-medusa_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,17 +22,11 @@ services:
   redis:
     image: redis:7-alpine
     container_name: medusa-redis
+    restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
+    networks:
+      - medusa_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -50,72 +37,54 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      args:
-        CACHEBUST: ${CACHEBUST:-1}
     container_name: medusa-backend
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-medusa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      COOKIE_SECRET: ${COOKIE_SECRET}
-      MEDUSA_ADMIN_ONBOARDING_TYPE: ${MEDUSA_ADMIN_ONBOARDING_TYPE:-default}
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${BACKEND_PORT:-9000}
-      WORKER_MODE: ${WORKER_MODE:-shared}
-      NODE_OPTIONS: "--max-old-space-size=1536"
-      STORE_CORS: ${STORE_CORS:-http://localhost:3001}
-      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
-      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
-      TS_NODE_TRANSPILE_ONLY: "true"
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://${POSTGRES_USER:-nodejs}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - PORT=9000
     ports:
-      - "${BACKEND_PORT:-9000}:${BACKEND_PORT:-9000}"
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1.5G
-        reservations:
-          cpus: '0.5'
-          memory: 768M
+      - "${BACKEND_PORT:-9000}:9000"
+    networks:
+      - medusa_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-9000}/health"]  # Fixed port
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 30s
       timeout: 10s
       start_period: 180s
-      retries: 10
+      retries: 5
 
   storefront:
     build:
       context: ./storefront
       dockerfile: Dockerfile
     container_name: medusa-storefront
-    environment:
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_URL:-http://backend:9000}
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY}
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${STOREFRONT_PORT:-3001}
-      NODE_OPTIONS: "--max-old-space-size=1024"
+    restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
+    environment:
+      - NEXT_PUBLIC_MEDUSA_BACKEND_URL=${PUBLIC_BACKEND_URL:-http://backend:9000}
+      - NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=${MEDUSA_PUBLISHABLE_KEY}
+      - NODE_ENV=production
+      - PORT=3001
     ports:
-      - "${STOREFRONT_PORT:-3001}:${STOREFRONT_PORT:-3001}"
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 512M
+      - "${STOREFRONT_PORT:-3001}:3001"
+    networks:
+      - medusa_network
 
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  medusa_network:
+    driver: bridge
