@@ -86,7 +86,7 @@ COPY --from=deps /app/package.json ./
 # Copy application source
 COPY . ./
 
-
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 # Create/override health endpoint (AFTER source copy, BEFORE build)
 RUN mkdir -p /app/src/api/health && \
