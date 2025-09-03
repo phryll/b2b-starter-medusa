@@ -14,20 +14,33 @@ export NODE_ENV=${NODE_ENV:-production}
 export PORT=${PORT:-9000}
 export WORKER_MODE=${WORKER_MODE:-shared}
 
-# Load admin status from build time
-if [ -f "/app/.admin-status" ]; then
-    source /app/.admin-status
-    echo "Admin status loaded from build: $ADMIN_DISABLED"
-else
-    # Fallback: check if admin files exist
+# Determine admin status early and persist it
+determine_admin_status() {
     if [ -f "/app/.medusa/admin/index.html" ]; then
+        echo "Admin files found - enabling admin UI"
         export ADMIN_DISABLED=false
-        echo "Admin files detected: $ADMIN_DISABLED"
+        return 0
     else
+        echo "Admin files not found - disabling admin UI"
         export ADMIN_DISABLED=true
-        echo "No admin files found: $ADMIN_DISABLED"
+        return 1
     fi
-fi
+}
+
+# Set admin status and persist to environment
+determine_admin_status
+
+# Write environment variables to a file for Node.js to read
+cat > /app/.env.runtime << EOF
+ADMIN_DISABLED=${ADMIN_DISABLED}
+NODE_ENV=${NODE_ENV}
+PORT=${PORT}
+WORKER_MODE=${WORKER_MODE}
+PGSSLMODE=${PGSSLMODE}
+NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+MIKRO_ORM_SSL=${MIKRO_ORM_SSL}
+MIKRO_ORM_REJECT_UNAUTHORIZED=${MIKRO_ORM_REJECT_UNAUTHORIZED}
+EOF
 
 echo "NODE_ENV: ${NODE_ENV}"
 echo "PORT: ${PORT}"
@@ -139,6 +152,12 @@ run_migrations() {
 
 seed_database() {
     echo "Seeding database..."
+    # Skip seeding if admin is disabled to avoid admin-related errors
+    if [ "$ADMIN_DISABLED" = "true" ]; then
+        echo "⚠️ Skipping seeding - admin disabled"
+        return 0
+    fi
+    
     yarn seed 2>/dev/null || echo "⚠️ Seeding skipped or failed (this may be normal)"
 }
 
@@ -160,7 +179,13 @@ start_medusa() {
         echo "ℹ️  Admin UI is enabled - accessible at http://localhost:$PORT/app"
     fi
     
-    exec yarn start
+    # Start with explicit environment variables
+    exec env \
+        ADMIN_DISABLED="${ADMIN_DISABLED}" \
+        NODE_ENV="${NODE_ENV}" \
+        PORT="${PORT}" \
+        WORKER_MODE="${WORKER_MODE}" \
+        yarn start
 }
 
 main() {

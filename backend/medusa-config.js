@@ -8,8 +8,39 @@ loadEnv(process.env.NODE_ENV || "production", process.cwd());
 
 const isBuilding = process.argv.includes('build') || process.env.MEDUSA_BUILD === 'true';
 
-// Use consistent environment variable name
-const disableAdmin = process.env.ADMIN_DISABLED === "true" || false;
+// Enhanced admin detection with multiple fallbacks
+const detectAdminStatus = () => {
+  // Check environment variable first
+  if (process.env.ADMIN_DISABLED === "true") {
+    console.log("Admin disabled via ADMIN_DISABLED environment variable");
+    return true;
+  }
+  
+  // Check if admin files exist
+  const fs = require('fs');
+  const path = require('path');
+  const adminPath = path.join(process.cwd(), '.medusa', 'admin', 'index.html');
+  
+  try {
+    if (fs.existsSync(adminPath)) {
+      console.log("Admin files found, enabling admin");
+      return false;
+    } else {
+      console.log("Admin files not found, disabling admin");
+      return true;
+    }
+  } catch (error) {
+    console.log("Error checking admin files, disabling admin:", error.message);
+    return true;
+  }
+};
+
+const disableAdmin = isBuilding ? false : detectAdminStatus();
+
+console.log("Medusa Configuration:");
+console.log("- NODE_ENV:", process.env.NODE_ENV);
+console.log("- Admin disabled:", disableAdmin);
+console.log("- Is building:", isBuilding);
 
 if (!isBuilding) {
   const requiredEnvVars = [
