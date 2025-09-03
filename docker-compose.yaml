@@ -27,6 +27,7 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+
   redis:
     image: redis:7-alpine
     container_name: medusa-redis
@@ -41,84 +42,79 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
   backend:
-      build:
-        context: ./backend
-        dockerfile: Dockerfile
-        args:
-          CACHEBUST: ${CACHEBUST:-1}
-      container_name: medusa-backend
-      environment:
-        DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
-        REDIS_URL: redis://redis:6379
-        JWT_SECRET: ${JWT_SECRET}
-        COOKIE_SECRET: ${COOKIE_SECRET}
-        NODE_ENV: ${NODE_ENV:-production}
-        PORT: ${BACKEND_PORT:-9000}
-        WORKER_MODE: ${WORKER_MODE:-shared}
-        NODE_OPTIONS: "--max-old-space-size=3072"
-        STORE_CORS: ${STORE_CORS:-http://localhost:3001}
-        ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
-        AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
-        TS_NODE_TRANSPILE_ONLY: "true"
-        # Use the key from Dokploy if provided
-        MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
-      depends_on:
-        postgres:
-          condition: service_healthy
-        redis:
-          condition: service_healthy
-      ports:
-        - "${BACKEND_PORT:-9000}:${BACKEND_PORT:-9000}"
-      networks:
-        - medusa_network
-      restart: unless-stopped
-      volumes:
-        # Mount shared volume with proper permissions
-        - shared_data:/shared
-      healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
-        interval: 15s
-        timeout: 10s
-        retries: 15
-        start_period: 120s  # Increased for key creation time
-      # Fixed entrypoint and command to handle permissions properly
-      entrypoint: ["/sbin/tini", "--"]
-      command: >
-        sh -c "
-          echo 'Setting up shared volume permissions...'
-          
-          # Ensure shared directory exists and has correct permissions
-          # Run as root initially to set up permissions
-          mkdir -p /shared
-          chown 1001:1001 /shared 2>/dev/null || echo 'Could not change ownership (may not have root)'
-          chmod 755 /shared
-          
-          echo 'Starting backend as nodejs user...'
-          
-          # Switch to nodejs user and run startup script
-          # Use su-exec if available, otherwise try su
-          if command -v su-exec >/dev/null 2>&1; then
-            exec su-exec nodejs:nodejs /app/startup.sh
-          elif command -v su >/dev/null 2>&1; then
-            exec su -s /bin/sh nodejs -c '/app/startup.sh'
-          else
-            # Fallback: run as current user
-            echo 'Warning: Running as root user due to missing su-exec/su'
-            exec /app/startup.sh
-          fi
-        "
-      # Add resource limits for consistency
-      deploy:
-        resources:
-          limits:
-            cpus: '2.0'
-            memory: 4G
-          reservations:
-            cpus: '1.0'
-            memory: 2G
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        CACHEBUST: ${CACHEBUST:-1}
+    container_name: medusa-backend
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${BACKEND_PORT:-9000}
+      WORKER_MODE: ${WORKER_MODE:-shared}
+      NODE_OPTIONS: "--max-old-space-size=3072"
+      STORE_CORS: ${STORE_CORS:-http://localhost:3001}
+      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
+      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
+      TS_NODE_TRANSPILE_ONLY: "true"
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-9000}:${BACKEND_PORT:-9000}"
+    networks:
+      - medusa_network
+    restart: unless-stopped
+    volumes:
+      - shared_data:/shared
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+    entrypoint: ["/sbin/tini", "--"]
+    command: >
+      sh -c "
+        echo 'Setting up shared volume permissions...'
+        mkdir -p /shared
+        chown 1001:1001 /shared 2>/dev/null || echo 'Could not change ownership'
+        chmod 755 /shared
+        echo 'Starting backend as nodejs user...'
+        if command -v su-exec >/dev/null 2>&1; then
+          exec su-exec nodejs:nodejs /app/startup.sh
+        elif command -v su >/dev/null 2>&1; then
+          exec su -s /bin/sh nodejs -c '/app/startup.sh'
+        else
+          echo 'Warning: Running as root user'
+          exec /app/startup.sh
+        fi
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
 
   storefront:
     build:
@@ -130,7 +126,6 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${STOREFRONT_PORT:-3001}
       NODE_OPTIONS: "--max-old-space-size=2048"
-      # Pass the publishable key directly to storefront
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
     depends_on:
       backend:
@@ -141,8 +136,15 @@ services:
       - medusa_network
     restart: unless-stopped
     volumes:
-      # Access shared publishable key
       - shared_data:/shared:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
 
 volumes:
   postgres_data:
