@@ -64,7 +64,7 @@ services:
       ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
       AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
       TS_NODE_TRANSPILE_ONLY: "true"
-      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-""}
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,7 +84,7 @@ services:
     container_name: medusa-storefront
     environment:
       NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_URL:-http://backend:9000}
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-""},
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY},
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${STOREFRONT_PORT:-3001}
       NODE_OPTIONS: "--max-old-space-size=2048"
