@@ -86,7 +86,7 @@ services:
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY}
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${STOREFRONT_PORT:-3001}
-      NODE_OPTIONS: "--max-old-space-size=3584"
+      NODE_OPTIONS: "--max-old-space-size=2048"
     depends_on:
       backend:
         condition: service_started

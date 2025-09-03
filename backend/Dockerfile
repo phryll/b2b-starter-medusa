@@ -86,7 +86,7 @@ COPY --from=deps /app/package.json ./
 # Copy application source
 COPY . ./
 
-ENV NODE_OPTIONS=--max-old-space-size=4096
+ENV NODE_OPTIONS=--max-old-space-size=3072
 
 # Create/override health endpoint (AFTER source copy, BEFORE build)
 RUN mkdir -p /app/src/api/health && \
@@ -98,7 +98,7 @@ RUN mkdir -p /app/src/api/health && \
 
 # Build the application with yarn
 ENV DISABLE_ADMIN=true
-RUN yarn build || yarn build
+RUN yarn build --no-cache || yarn build --no-cache
 
 # Verify build worked
 # RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
