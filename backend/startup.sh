@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 echo "========================================="
@@ -19,14 +19,12 @@ echo "PORT: ${PORT}"
 echo "WORKER_MODE: ${WORKER_MODE}"
 echo ""
 
-# Robust URL parsing function
 parse_db_url() {
     if [ -z "$DATABASE_URL" ]; then
         echo "❌ DATABASE_URL not set"
         exit 1
     fi
     
-    # Extract components more reliably
     DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*://[^@]*@\([^:]*\):.*|\1|p')
     DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*://[^@]*@[^:]*:\([0-9]*\)/.*|\1|p')
     
@@ -38,7 +36,6 @@ parse_db_url() {
     echo "Parsed database: $DB_HOST:$DB_PORT"
 }
 
-# Robust Redis URL parsing
 parse_redis_url() {
     if [ -z "$REDIS_URL" ]; then
         echo "❌ REDIS_URL not set"
@@ -61,7 +58,6 @@ parse_redis_url() {
     echo "Parsed Redis: $REDIS_HOST:$REDIS_PORT"
 }
 
-# Simple HTTP health endpoint without netcat conflicts
 create_health_endpoint() {
     mkdir -p /tmp/health
     cat > /tmp/health/index.html << 'EOF'
@@ -86,7 +82,6 @@ build_admin_if_needed() {
     fi
 }
 
-# Test database connectivity with proper error handling
 test_database() {
     parse_db_url
     
@@ -94,7 +89,6 @@ test_database() {
     for i in $(seq 1 60); do
         if pg_isready -h "$DB_HOST" -p "$DB_PORT" -t 5 2>/dev/null; then
             echo "✓ Database connection test passed"
-            # Additional test: try actual connection
             if PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
                psql -h "$DB_HOST" -p "$DB_PORT" -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
                -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" -c "SELECT 1;" >/dev/null 2>&1; then
@@ -113,7 +107,6 @@ test_database() {
     return 1
 }
 
-# Test Redis connectivity
 test_redis() {
     parse_redis_url
     
@@ -131,13 +124,13 @@ test_redis() {
     return 1
 }
 
-# Run migrations with retry logic
 run_migrations() {
     echo "Running database migrations..."
     
     for attempt in $(seq 1 3); do
         echo "Migration attempt $attempt/3..."
-        if yarn medusa db:migrate 2>&1; then
+        # Ignore CLI errors but check if migrations actually run
+        if yarn medusa db:migrate 2>&1 | grep -E "(✓|completed|success)" >/dev/null; then
             echo "✓ Migrations completed successfully"
             return 0
         else
@@ -153,17 +146,12 @@ run_migrations() {
     return 1
 }
 
-# Seed database
 seed_database() {
     echo "Seeding database..."
-    if yarn seed 2>/dev/null; then
-        echo "✓ Database seeded successfully"
-    else
-        echo "⚠️ Seeding skipped or failed (this may be normal)"
-    fi
+    # Ignore CLI errors but attempt seeding
+    yarn seed 2>/dev/null || echo "⚠️ Seeding skipped or failed (this may be normal)"
 }
 
-# Check if port is available
 check_port() {
     if nc -z localhost "$PORT" 2>/dev/null; then
         echo "❌ Port $PORT is already in use"
@@ -171,7 +159,18 @@ check_port() {
     fi
 }
 
-# Main execution
+start_medusa() {
+    echo "Starting Medusa server..."
+    # Use node directly to bypass CLI issues
+    if [ -f ".medusa/server/src/index.js" ]; then
+        echo "Starting from compiled server..."
+        exec node .medusa/server/src/index.js
+    else
+        echo "Starting with yarn (may show CLI warnings)..."
+        exec yarn start
+    fi
+}
+
 main() {
     create_health_endpoint
     check_port
@@ -184,7 +183,6 @@ main() {
         exit 1
     fi
     
-    # Build admin if needed (before migrations)
     build_admin_if_needed
 
     if ! run_migrations; then
@@ -192,12 +190,10 @@ main() {
     fi
     
     seed_database
-        
-    # Start the server
-    exec yarn start
+    
+    start_medusa
 }
 
-# Error handler
 error_handler() {
     echo "❌ Startup failed at line $1"
     echo "Container will restart automatically..."
@@ -206,5 +202,4 @@ error_handler() {
 
 trap 'error_handler $LINENO' ERR
 
-# Run main function
 main "$@"

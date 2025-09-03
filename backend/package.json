@@ -39,6 +39,7 @@
     "@types/node": "^20.0.0",
     "awilix": "^8.0.1",
     "pg": "^8.13.0",
+    "zod": "^3.23.8",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
@@ -59,8 +60,8 @@
     "ts-node": "^10.9.2",
     "vite": "^5.2.11"
   },
-  "peerDependencies": {
-    "zod": "^3.23.0"
+  "resolutions": {
+    "zod": "^3.23.8"
   },
   "engines": {
     "node": ">=20"

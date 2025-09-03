@@ -44,6 +44,7 @@
     "react-intersection-observer": "^9.3.4",
     "react-markdown": "^9.0.1",
     "server-only": "^0.0.1",
+    "zod": "^3.23.8",
     "webpack": "^5"
   },
   "devDependencies": {
@@ -65,7 +66,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3"
   },
-  "peerDependencies": {
-    "zod": "^3.23.0"
+  "resolutions": {
+    "zod": "^3.23.8"
   }
 }
