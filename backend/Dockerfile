@@ -97,19 +97,36 @@ RUN mkdir -p /app/src/api/health && \
     echo '  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString(), uptime: process.uptime() });' >> /app/src/api/health/route.ts && \
     echo '};' >> /app/src/api/health/route.ts
 
-# Build the application - ADMIN ENABLED for full build
+# Build the application in stages with explicit admin build
 ENV ADMIN_DISABLED=false
-RUN echo "Building Medusa application with admin enabled..." && \
-    yarn build && \
-    echo "Build completed successfully"
 
-# Verify build outputs exist
-RUN echo "Verifying build outputs..." && \
+# Step 1: Build backend first
+RUN echo "Step 1: Building backend..." && \
+    yarn build:backend && \
+    echo "Backend build completed"
+
+# Step 2: Build admin explicitly 
+RUN echo "Step 2: Building admin..." && \
+    yarn build:admin && \
+    echo "Admin build completed"
+
+# Step 3: Verify both builds exist
+RUN echo "Step 3: Verifying build outputs..." && \
+    echo "Checking backend build..." && \
     ls -la /app/.medusa/server/ && \
-    ls -la /app/.medusa/admin/ && \
-    test -f /app/.medusa/admin/index.html && \
-    echo "✓ Admin build verified - index.html found" || \
-    (echo "❌ Admin build failed - index.html not found" && exit 1)
+    echo "Checking admin build..." && \
+    ls -la /app/.medusa/ && \
+    if [ -d "/app/.medusa/admin" ]; then \
+        ls -la /app/.medusa/admin/ && \
+        if [ -f "/app/.medusa/admin/index.html" ]; then \
+            echo "✓ Admin build verified - index.html found"; \
+        else \
+            echo "❌ Admin directory exists but index.html missing" && \
+            ls -la /app/.medusa/admin/ && exit 1; \
+        fi; \
+    else \
+        echo "❌ Admin build directory missing" && exit 1; \
+    fi
 
 # ===========================================
 # Stage 3: Production Runtime
@@ -160,10 +177,17 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copy built application from builder
 COPY --from=build --chown=nodejs:nodejs /app ./
 
-# Verify admin files exist in final image
-RUN test -f /app/.medusa/admin/index.html && \
-    echo "✓ Admin files present in production image" || \
-    (echo "❌ Admin files missing in production image" && exit 1)
+# Final verification that admin files exist in production image
+RUN echo "Final verification in production image..." && \
+    ls -la /app/.medusa/ && \
+    if [ -f "/app/.medusa/admin/index.html" ]; then \
+        echo "✓ Admin files present in production image"; \
+    else \
+        echo "❌ Admin files missing in production image" && \
+        echo "Available files in .medusa:" && \
+        find /app/.medusa -type f -name "*.html" 2>/dev/null || echo "No HTML files found" && \
+        exit 1; \
+    fi
 
 # Create required directories
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
