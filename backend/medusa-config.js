@@ -8,8 +8,13 @@ loadEnv(process.env.NODE_ENV || "production", process.cwd());
 
 const isBuilding = process.argv.includes('build') || process.env.MEDUSA_BUILD === 'true';
 
-// Use consistent environment variable name
-const disableAdmin = process.env.ADMIN_DISABLED === "true" || false;
+// Force admin disabled for production deployment
+const disableAdmin = process.env.NODE_ENV === 'production' ? true : (process.env.ADMIN_DISABLED === "true");
+
+console.log("Medusa Configuration:");
+console.log("- NODE_ENV:", process.env.NODE_ENV);
+console.log("- Admin disabled:", disableAdmin);
+console.log("- Is building:", isBuilding);
 
 if (!isBuilding) {
   const requiredEnvVars = [
@@ -52,7 +57,7 @@ module.exports = defineConfig({
   },
   admin: {
     disable: disableAdmin,
-    serve: !disableAdmin,          
+    serve: false,  // Force disabled serving
     outDir: ".medusa/admin"
   },
   modules: {

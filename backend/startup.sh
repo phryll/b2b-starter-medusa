@@ -14,20 +14,8 @@ export NODE_ENV=${NODE_ENV:-production}
 export PORT=${PORT:-9000}
 export WORKER_MODE=${WORKER_MODE:-shared}
 
-# Load admin status from build time
-if [ -f "/app/.admin-status" ]; then
-    source /app/.admin-status
-    echo "Admin status loaded from build: $ADMIN_DISABLED"
-else
-    # Fallback: check if admin files exist
-    if [ -f "/app/.medusa/admin/index.html" ]; then
-        export ADMIN_DISABLED=false
-        echo "Admin files detected: $ADMIN_DISABLED"
-    else
-        export ADMIN_DISABLED=true
-        echo "No admin files found: $ADMIN_DISABLED"
-    fi
-fi
+# Always disable admin for now to avoid startup issues
+export ADMIN_DISABLED=true
 
 echo "NODE_ENV: ${NODE_ENV}"
 echo "PORT: ${PORT}"
@@ -121,11 +109,18 @@ run_migrations() {
     
     for attempt in $(seq 1 3); do
         echo "Migration attempt $attempt/3..."
-        if yarn medusa db:migrate 2>&1 | grep -E "(✓|completed|success|Migration.*executed)" >/dev/null; then
+        # Remove error trapping temporarily for migrations
+        set +e
+        migration_output=$(yarn medusa db:migrate 2>&1)
+        migration_exit_code=$?
+        set -e
+        
+        if echo "$migration_output" | grep -E "(✓|completed|success|Migration.*executed)" >/dev/null || [ $migration_exit_code -eq 0 ]; then
             echo "✓ Migrations completed successfully"
             return 0
         else
             echo "❌ Migration attempt $attempt failed"
+            echo "Migration output: $migration_output"
             if [ $attempt -lt 3 ]; then
                 echo "Retrying in 15 seconds..."
                 sleep 15
@@ -139,7 +134,11 @@ run_migrations() {
 
 seed_database() {
     echo "Seeding database..."
-    yarn seed 2>/dev/null || echo "⚠️ Seeding skipped or failed (this may be normal)"
+    # Use set +e to ignore seeding errors
+    set +e
+    yarn seed 2>/dev/null
+    set -e
+    echo "⚠️ Seeding completed (errors ignored)"
 }
 
 check_port() {
@@ -151,44 +150,48 @@ check_port() {
 
 start_medusa() {
     echo "Starting Medusa server..."
-    echo "Final admin status: ${ADMIN_DISABLED}"
+    echo "Admin disabled - backend API only"
     
-    if [ "$ADMIN_DISABLED" = "true" ]; then
-        echo "ℹ️  Admin UI is disabled - backend API will be available at http://localhost:$PORT"
-        echo "ℹ️  Admin dashboard will not be accessible"
-    else
-        echo "ℹ️  Admin UI is enabled - accessible at http://localhost:$PORT/app"
-    fi
-    
+    # Disable error trapping for the start command
+    set +e
     exec yarn start
 }
 
 main() {
+    echo "Starting main initialization..."
+    
     check_port
     
     if ! test_database; then
+        echo "Database test failed, exiting"
         exit 1
     fi
     
     if ! test_redis; then
+        echo "Redis test failed, exiting"
         exit 1
     fi
 
     if ! run_migrations; then
+        echo "Migrations failed, exiting"
         exit 1
     fi
     
     seed_database
     
+    echo "All checks passed, starting Medusa..."
     start_medusa
 }
 
+# Improved error handler
 error_handler() {
     echo "❌ Startup failed at line $1"
+    echo "Last command exit code: $?"
     echo "Container will restart automatically..."
     exit 1
 }
 
 trap 'error_handler $LINENO' ERR
 
+echo "Calling main function..."
 main "$@"

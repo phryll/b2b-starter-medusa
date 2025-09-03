@@ -103,11 +103,15 @@ RUN echo "Checking available yarn scripts:" && \
     echo "Available yarn commands:" && \
     yarn run --help 2>/dev/null || echo "Could not list yarn commands"
 
-# Build with admin enabled - use the main build command
-ENV ADMIN_DISABLED=false
-RUN echo "Building Medusa application with admin enabled..." && \
+ENV ADMIN_DISABLED=true
+RUN echo "Building Medusa application (backend only)..." && \
     yarn build && \
     echo "Build completed successfully"
+
+# Remove all admin verification steps - just check backend
+RUN echo "Verifying backend build:" && \
+    ls -la /app/.medusa/server/ && \
+    echo "✓ Backend build verified"
 
 # Check what was actually built
 RUN echo "Checking build outputs:" && \
