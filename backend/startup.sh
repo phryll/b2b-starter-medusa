@@ -178,9 +178,9 @@ validate_database_schema() {
 create_publishable_key() {
     echo "Creating publishable key via direct database insertion..."
     
-    # Check if key already provided and exists in database
+    # Check if key already provided via environment and exists in database
     if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
-        echo "Checking provided publishable key..."
+        echo "Checking provided publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
         parse_db_url
         
         # Check if publishable_api_key table exists
@@ -198,9 +198,21 @@ create_publishable_key() {
                 -t -c "SELECT COUNT(*) FROM publishable_api_key WHERE id = '$MEDUSA_PUBLISHABLE_KEY';" 2>/dev/null | xargs)
             
             if [ "$key_exists" = "1" ]; then
-                echo "✓ Using existing publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+                echo "✓ Using existing publishable key from environment: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+                
+                # Save key to both local and shared locations
                 echo "MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" > /app/.env.publishable
+                echo "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" >> /app/.env.publishable
+                
+                # Copy to shared volume if mounted
+                if [ -d "/shared" ]; then
+                    cp /app/.env.publishable /shared/
+                    echo "✓ Publishable key copied to shared volume"
+                fi
+                
                 return 0
+            else
+                echo "⚠️ Provided key not found in database, will create new one"
             fi
         else
             echo "⚠️ publishable_api_key table does not exist yet"
@@ -268,8 +280,21 @@ create_publishable_key() {
     
     if echo "$insert_result" | grep -q "$new_key" || echo "$insert_result" | grep -q "INSERT 0 1"; then
         export MEDUSA_PUBLISHABLE_KEY="$new_key"
+        
+        # Save key to local file (both backend and frontend formats)
         echo "MEDUSA_PUBLISHABLE_KEY=$new_key" > /app/.env.publishable
+        echo "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=$new_key" >> /app/.env.publishable
+        
+        # Copy to shared volume if mounted
+        if [ -d "/shared" ]; then
+            cp /app/.env.publishable /shared/
+            echo "✓ Publishable key saved to shared volume"
+        fi
+        
         echo "✓ Created publishable key via database: ${new_key:0:20}..."
+        echo "📋 IMPORTANT: Save this key in Dokploy environment variables:"
+        echo "    Variable: MEDUSA_PUBLISHABLE_KEY"
+        echo "    Value: $new_key"
         
         # Verify the key exists
         verification=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
