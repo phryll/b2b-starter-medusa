@@ -13,8 +13,6 @@ export MIKRO_ORM_REJECT_UNAUTHORIZED=false
 export NODE_ENV=${NODE_ENV:-production}
 export PORT=${PORT:-9000}
 export WORKER_MODE=${WORKER_MODE:-shared}
-
-# Always disable admin for now to avoid startup issues
 export ADMIN_DISABLED=true
 
 echo "NODE_ENV: ${NODE_ENV}"
@@ -109,7 +107,6 @@ run_migrations() {
     
     for attempt in $(seq 1 3); do
         echo "Migration attempt $attempt/3..."
-        # Remove error trapping temporarily for migrations
         set +e
         migration_output=$(yarn medusa db:migrate 2>&1)
         migration_exit_code=$?
@@ -132,9 +129,40 @@ run_migrations() {
     return 1
 }
 
+create_publishable_key() {
+    echo "Creating/checking publishable key..."
+    
+    if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
+        echo "✓ Publishable key already set: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
+        return 0
+    fi
+    
+    echo "Generating publishable key..."
+    set +e
+    key_output=$(yarn medusa exec ./src/scripts/create-publishable-key.ts 2>&1)
+    key_exit_code=$?
+    set -e
+    
+    if [ $key_exit_code -eq 0 ]; then
+        # Extract the publishable key from output
+        publishable_key=$(echo "$key_output" | grep "MEDUSA_PUBLISHABLE_KEY=" | cut -d'=' -f2)
+        if [ -n "$publishable_key" ]; then
+            export MEDUSA_PUBLISHABLE_KEY="$publishable_key"
+            echo "✓ Publishable key created: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
+            
+            # Save to file for persistence
+            echo "MEDUSA_PUBLISHABLE_KEY=$publishable_key" > /app/.publishable-key
+            return 0
+        fi
+    fi
+    
+    echo "❌ Failed to create publishable key"
+    echo "Key output: $key_output"
+    return 1
+}
+
 seed_database() {
     echo "Seeding database..."
-    # Use set +e to ignore seeding errors
     set +e
     yarn seed 2>/dev/null
     set -e
@@ -151,8 +179,11 @@ check_port() {
 start_medusa() {
     echo "Starting Medusa server..."
     echo "Admin disabled - backend API only"
+    echo "Publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
     
-    # Disable error trapping for the start command
+    # Export the publishable key for the medusa process
+    export MEDUSA_PUBLISHABLE_KEY
+    
     set +e
     exec yarn start
 }
@@ -179,11 +210,14 @@ main() {
     
     seed_database
     
+    if ! create_publishable_key; then
+        echo "⚠️ Warning: Could not create publishable key, some features may not work"
+    fi
+    
     echo "All checks passed, starting Medusa..."
     start_medusa
 }
 
-# Improved error handler
 error_handler() {
     echo "❌ Startup failed at line $1"
     echo "Last command exit code: $?"
