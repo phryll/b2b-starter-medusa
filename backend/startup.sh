@@ -113,9 +113,65 @@ run_migrations() {
 # Seed database with sample data
 seed_database() {
     echo "Seeding database..."
-    set +e  # Allow seeding to fail
-    yarn seed 2>/dev/null || echo "⚠️ Seeding failed (continuing anyway)"
+    
+    # Check if we already have regions/countries to avoid conflicts
+    parse_db_url
+    
+    existing_regions=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+        psql -h "$DB_HOST" -p "$DB_PORT" \
+        -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+        -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+        -t -c "SELECT COUNT(*) FROM region;" 2>/dev/null | xargs || echo "0")
+    
+    if [ "$existing_regions" -gt "0" ]; then
+        echo "⚠️ Database already has $existing_regions regions, skipping seeding to avoid conflicts"
+        return 0
+    fi
+    
+    # Only seed if database is empty
+    echo "Database appears empty, running seeding..."
+    set +e  # Allow seeding to fail without stopping deployment
+    
+    seed_output=$(yarn seed 2>&1)
+    seed_exit_code=$?
+    
+    if [ $seed_exit_code -eq 0 ]; then
+        echo "✓ Seeding completed successfully"
+    else
+        echo "⚠️ Seeding failed but continuing deployment"
+        echo "Seed output: $seed_output"
+        
+        # Check if the failure was due to existing data (not critical)
+        if echo "$seed_output" | grep -q "already assigned to a region"; then
+            echo "⚠️ Seeding failed due to existing data - this is normal for redeployments"
+        else
+            echo "⚠️ Seeding failed for other reasons - check logs if store has no products"
+        fi
+    fi
+    
     set -e
+}
+
+validate_database_schema() {
+    echo "Validating database schema..."
+    parse_db_url
+    
+    # Check for critical tables
+    critical_tables="region store currency product publishable_api_key"
+    
+    for table in $critical_tables; do
+        table_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+            psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+            -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+            -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '$table');" 2>/dev/null | xargs)
+        
+        if [ "$table_exists" = "t" ]; then
+            echo "✓ Table '$table' exists"
+        else
+            echo "⚠️ Table '$table' missing - may cause issues"
+        fi
+    done
 }
 
 # Create publishable key via direct database insertion
@@ -124,35 +180,93 @@ create_publishable_key() {
     
     # Check if key already provided and exists in database
     if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
+        echo "Checking provided publishable key..."
         parse_db_url
-        key_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+        
+        # Check if publishable_api_key table exists
+        table_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
             psql -h "$DB_HOST" -p "$DB_PORT" \
             -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
             -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
-            -t -c "SELECT COUNT(*) FROM publishable_api_key WHERE id = '$MEDUSA_PUBLISHABLE_KEY';" 2>/dev/null | xargs)
+            -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'publishable_api_key');" 2>/dev/null | xargs)
         
-        if [ "$key_exists" = "1" ]; then
-            echo "✓ Using existing publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
-            echo "MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" > /app/.env.publishable
-            return 0
+        if [ "$table_exists" = "t" ]; then
+            key_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+                psql -h "$DB_HOST" -p "$DB_PORT" \
+                -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+                -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+                -t -c "SELECT COUNT(*) FROM publishable_api_key WHERE id = '$MEDUSA_PUBLISHABLE_KEY';" 2>/dev/null | xargs)
+            
+            if [ "$key_exists" = "1" ]; then
+                echo "✓ Using existing publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+                echo "MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" > /app/.env.publishable
+                return 0
+            fi
+        else
+            echo "⚠️ publishable_api_key table does not exist yet"
         fi
     fi
     
-    # Generate new publishable key
-    new_key="pk_$(openssl rand -hex 24)"
-    echo "Generated new key: ${new_key:0:20}..."
+    # Generate new publishable key with multiple fallback methods
+    if command -v openssl >/dev/null 2>&1; then
+        # Method 1: OpenSSL (preferred)
+        random_hex=$(openssl rand -hex 24)
+        new_key="pk_${random_hex}"
+        echo "Generated key using OpenSSL: ${new_key:0:20}..."
+    elif [ -f /dev/urandom ]; then
+        # Method 2: /dev/urandom fallback
+        random_hex=$(dd if=/dev/urandom bs=24 count=1 2>/dev/null | xxd -p -c 24)
+        new_key="pk_${random_hex}"
+        echo "Generated key using /dev/urandom: ${new_key:0:20}..."
+    else
+        # Method 3: Date/PID based fallback (less secure but functional)
+        timestamp=$(date +%s)
+        pid=$$
+        random_suffix=$(echo "${timestamp}${pid}" | sha256sum | cut -c1-48)
+        new_key="pk_${random_suffix}"
+        echo "Generated key using timestamp fallback: ${new_key:0:20}..."
+    fi
     
-    # Insert directly into database
+    # Ensure publishable_api_key table exists
     parse_db_url
+    echo "Ensuring publishable_api_key table exists..."
+    
+    # Create table if it doesn't exist (matching Medusa's schema)
+    table_creation=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+        psql -h "$DB_HOST" -p "$DB_PORT" \
+        -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+        -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+        -c "CREATE TABLE IF NOT EXISTS publishable_api_key (
+            id text PRIMARY KEY,
+            title text,
+            created_at timestamptz DEFAULT NOW(),
+            updated_at timestamptz DEFAULT NOW(),
+            deleted_at timestamptz,
+            created_by text,
+            revoked_by text,
+            revoked_at timestamptz
+        );" 2>&1)
+    
+    if echo "$table_creation" | grep -q "ERROR"; then
+        echo "❌ Failed to create publishable_api_key table: $table_creation"
+        return 1
+    else
+        echo "✓ publishable_api_key table ready"
+    fi
+    
+    # Insert the new key
     echo "Inserting publishable key into database..."
     
     insert_result=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
         psql -h "$DB_HOST" -p "$DB_PORT" \
         -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
         -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
-        -c "INSERT INTO publishable_api_key (id, title, created_at, updated_at) VALUES ('$new_key', 'Auto-Generated Store Key', NOW(), NOW()) ON CONFLICT (id) DO NOTHING; SELECT '$new_key' as key;" 2>/dev/null)
+        -c "INSERT INTO publishable_api_key (id, title, created_at, updated_at) 
+            VALUES ('$new_key', 'Auto-Generated Store Key', NOW(), NOW()) 
+            ON CONFLICT (id) DO NOTHING 
+            RETURNING id;" 2>&1)
     
-    if echo "$insert_result" | grep -q "$new_key"; then
+    if echo "$insert_result" | grep -q "$new_key" || echo "$insert_result" | grep -q "INSERT 0 1"; then
         export MEDUSA_PUBLISHABLE_KEY="$new_key"
         echo "MEDUSA_PUBLISHABLE_KEY=$new_key" > /app/.env.publishable
         echo "✓ Created publishable key via database: ${new_key:0:20}..."
@@ -172,7 +286,7 @@ create_publishable_key() {
             return 1
         fi
     else
-        echo "❌ Failed to insert publishable key"
+        echo "❌ Failed to insert publishable key: $insert_result"
         return 1
     fi
 }
@@ -212,9 +326,13 @@ main() {
         exit 1
     fi
     
+    # Validate schema after migrations
+    validate_database_schema
+    
+    # Seed database (with conflict handling)
     seed_database
     
-    # Create publishable key via direct database insertion
+    # Create publishable key (with multiple fallbacks)
     if ! create_publishable_key; then
         echo "❌ Failed to create publishable key"
         exit 1

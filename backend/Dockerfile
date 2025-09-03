@@ -175,7 +175,8 @@ RUN apk add --no-cache \
     giflib \
     pixman \
     libjpeg-turbo \
-    freetype
+    freetype \
+    openssl
 
 # Disable corepack and install Yarn Classic
 RUN corepack disable && \
