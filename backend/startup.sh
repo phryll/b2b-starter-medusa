@@ -19,6 +19,14 @@ echo "NODE_ENV: ${NODE_ENV}"
 echo "PORT: ${PORT}"
 echo "WORKER_MODE: ${WORKER_MODE}"
 echo "ADMIN_DISABLED: ${ADMIN_DISABLED}"
+
+# Check if publishable key is provided
+if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
+    echo "✓ Using pre-configured publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
+else
+    echo "⚠️ No publishable key provided, will generate one"
+fi
+
 echo ""
 
 parse_db_url() {
@@ -129,43 +137,14 @@ run_migrations() {
     return 1
 }
 
-create_publishable_key() {
-    echo "Creating/checking publishable key..."
-    
-    if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
-        echo "✓ Publishable key already set: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
-        return 0
+ensure_publishable_key() {
+    # Only generate key if not already provided
+    if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || [ "$MEDUSA_PUBLISHABLE_KEY" = "" ]; then
+        echo "Generating fallback publishable key..."
+        fallback_key="pk_dev_$(openssl rand -hex 16)"
+        export MEDUSA_PUBLISHABLE_KEY="$fallback_key"
+        echo "✓ Fallback key created: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
     fi
-    
-    echo "Generating publishable key..."
-    set +e
-    
-    # Try the JavaScript approach first
-    if [ -f "/app/scripts/create-key.js" ]; then
-        key_output=$(node /app/scripts/create-key.js 2>&1)
-        key_exit_code=$?
-        
-        if [ $key_exit_code -eq 0 ]; then
-            publishable_key=$(echo "$key_output" | grep "MEDUSA_PUBLISHABLE_KEY=" | cut -d'=' -f2)
-            if [ -n "$publishable_key" ]; then
-                export MEDUSA_PUBLISHABLE_KEY="$publishable_key"
-                echo "✓ Publishable key created: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
-                echo "MEDUSA_PUBLISHABLE_KEY=$publishable_key" > /app/.publishable-key
-                set -e
-                return 0
-            fi
-        fi
-    fi
-    
-    # Fallback: Generate a development key
-    echo "⚠️ Generating temporary development key..."
-    dev_key="pk_dev_$(openssl rand -hex 16)"
-    export MEDUSA_PUBLISHABLE_KEY="$dev_key"
-    echo "MEDUSA_PUBLISHABLE_KEY=$dev_key" > /app/.publishable-key
-    echo "✓ Development key created: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
-    
-    set -e
-    return 0
 }
 
 seed_database() {
@@ -216,9 +195,7 @@ main() {
     
     seed_database
     
-    if ! create_publishable_key; then
-        echo "⚠️ Warning: Could not create publishable key, some features may not work"
-    fi
+    ensure_publishable_key
     
     echo "All checks passed, starting Medusa..."
     start_medusa
