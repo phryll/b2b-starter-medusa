@@ -139,7 +139,8 @@ seed_database() {
         echo "✓ Seeding completed successfully"
     else
         echo "⚠️ Seeding failed but continuing deployment"
-        echo "Seed output: $seed_output"
+        # Log first few lines of error for debugging without overwhelming output
+        echo "$seed_output" | head -3
         
         # Check if the failure was due to existing data (not critical)
         if echo "$seed_output" | grep -q "already assigned to a region"; then
@@ -152,6 +153,7 @@ seed_database() {
     set -e
 }
 
+# Validate database schema
 validate_database_schema() {
     echo "Validating database schema..."
     parse_db_url
@@ -174,86 +176,17 @@ validate_database_schema() {
     done
 }
 
-# Create publishable key via direct database insertion
+# SIMPLIFIED: Create/verify publishable key - NO FILE OPERATIONS
 create_publishable_key() {
-    echo "Creating publishable key via direct database insertion..."
+    echo "Managing publishable key in database..."
     
-    # Check if key already provided via environment and exists in database
-    if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
-        key_display=$(echo "$MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
-        echo "Checking provided publishable key: ${key_display}..."
-        parse_db_url
-        
-        # Check if publishable_api_key table exists
-        table_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
-            psql -h "$DB_HOST" -p "$DB_PORT" \
-            -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
-            -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
-            -t -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'publishable_api_key');" 2>/dev/null | xargs)
-        
-        if [ "$table_exists" = "t" ]; then
-            key_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
-                psql -h "$DB_HOST" -p "$DB_PORT" \
-                -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
-                -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
-                -t -c "SELECT COUNT(*) FROM publishable_api_key WHERE id = '$MEDUSA_PUBLISHABLE_KEY';" 2>/dev/null | xargs)
-            
-            if [ "$key_exists" = "1" ]; then
-                echo "✓ Using existing publishable key from environment: ${key_display}..."
-                
-                # Save key to both local and shared locations
-                echo "MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" > /app/.env.publishable
-                echo "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" >> /app/.env.publishable
-                
-                # Copy to shared volume with error handling
-                if [ -d "/shared" ] && [ -w "/shared" ]; then
-                    cp /app/.env.publishable /shared/ && echo "✓ Publishable key copied to shared volume"
-                elif [ -d "/shared" ]; then
-                    echo "⚠️ Shared volume exists but is not writable"
-                else
-                    echo "⚠️ Shared volume not mounted"
-                fi
-                
-                return 0
-            else
-                echo "⚠️ Provided key not found in database, creating it..."
-                # Don't generate new key, use the provided one
-                new_key="$MEDUSA_PUBLISHABLE_KEY"
-                echo "Using provided key: ${key_display}..."
-            fi
-        else
-            echo "⚠️ publishable_api_key table does not exist yet"
-            new_key="$MEDUSA_PUBLISHABLE_KEY"
-        fi
-    fi
+    # CRITICAL CHANGE: Remove all file operations and shared volume attempts
+    # Only work with environment variables and database
     
-    # Generate new publishable key only if none provided
-    if [ -z "$new_key" ]; then
-        if command -v openssl >/dev/null 2>&1; then
-            # Method 1: OpenSSL (preferred)
-            random_hex=$(openssl rand -hex 24)
-            new_key="pk_${random_hex}"
-            echo "Generated key using OpenSSL: $(echo $new_key | cut -c1-20)..."
-        elif [ -f /dev/urandom ]; then
-            # Method 2: /dev/urandom fallback
-            random_hex=$(dd if=/dev/urandom bs=24 count=1 2>/dev/null | xxd -p -c 24)
-            new_key="pk_${random_hex}"
-            echo "Generated key using /dev/urandom: $(echo $new_key | cut -c1-20)..."
-        else
-            # Method 3: Date/PID based fallback (less secure but functional)
-            timestamp=$(date +%s)
-            pid=$$
-            random_suffix=$(echo "${timestamp}${pid}" | sha256sum | cut -c1-48)
-            new_key="pk_${random_suffix}"
-            echo "Generated key using timestamp fallback: $(echo $new_key | cut -c1-20)..."
-        fi
-    fi
-    
-    # Ensure publishable_api_key table exists
     parse_db_url
-    echo "Ensuring publishable_api_key table exists..."
     
-    # Create table if it doesn't exist (matching Medusa's schema)
+    # Ensure publishable_api_key table exists first
+    echo "Ensuring publishable_api_key table exists..."
     table_creation=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
         psql -h "$DB_HOST" -p "$DB_PORT" \
         -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
@@ -276,40 +209,74 @@ create_publishable_key() {
         echo "✓ publishable_api_key table ready"
     fi
     
-    # Insert the key
-    echo "Inserting publishable key into database..."
+    # Check if key provided via environment variable
+    if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
+        key_display=$(echo "$MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
+        echo "Using provided publishable key: ${key_display}..."
+        
+        # Check if key exists in database
+        key_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+            psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+            -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+            -t -c "SELECT COUNT(*) FROM publishable_api_key WHERE id = '$MEDUSA_PUBLISHABLE_KEY';" 2>/dev/null | xargs)
+        
+        if [ "$key_exists" = "1" ]; then
+            echo "✓ Publishable key verified in database"
+            export MEDUSA_PUBLISHABLE_KEY="$MEDUSA_PUBLISHABLE_KEY"
+            return 0
+        else
+            echo "⚠️ Provided key not found in database, inserting it..."
+            new_key="$MEDUSA_PUBLISHABLE_KEY"
+        fi
+    else
+        echo "No publishable key provided via environment, generating new one..."
+        
+        # Generate new key using available methods
+        if command -v openssl >/dev/null 2>&1; then
+            random_hex=$(openssl rand -hex 24)
+            new_key="pk_${random_hex}"
+        elif [ -f /dev/urandom ]; then
+            random_hex=$(dd if=/dev/urandom bs=24 count=1 2>/dev/null | xxd -p -c 24)
+            new_key="pk_${random_hex}"
+        else
+            # Fallback method for restricted environments
+            timestamp=$(date +%s)
+            pid=$$
+            random_suffix=$(echo "${timestamp}${pid}" | sha256sum | cut -c1-48)
+            new_key="pk_${random_suffix}"
+        fi
+        
+        key_display=$(echo "$new_key" | cut -c1-20)
+        echo "Generated new key: ${key_display}..."
+    fi
     
+    # Insert/update the key in database
+    echo "Storing publishable key in database..."
     insert_result=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
         psql -h "$DB_HOST" -p "$DB_PORT" \
         -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
         -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
         -c "INSERT INTO publishable_api_key (id, title, created_at, updated_at) 
-            VALUES ('$new_key', 'Auto-Generated Store Key', NOW(), NOW()) 
+            VALUES ('$new_key', 'Medusa Store Key', NOW(), NOW()) 
             ON CONFLICT (id) DO UPDATE SET updated_at = NOW()
             RETURNING id;" 2>&1)
     
-    if echo "$insert_result" | grep -q "$new_key" || echo "$insert_result" | grep -q "INSERT 0 1"; then
+    if echo "$insert_result" | grep -q "$new_key" || echo "$insert_result" | grep -q "INSERT\|UPDATE"; then
         export MEDUSA_PUBLISHABLE_KEY="$new_key"
+        key_display=$(echo "$new_key" | cut -c1-20)
+        echo "✓ Publishable key ready: ${key_display}..."
         
-        # Save key to local file (both backend and frontend formats)
-        echo "MEDUSA_PUBLISHABLE_KEY=$new_key" > /app/.env.publishable
-        echo "NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=$new_key" >> /app/.env.publishable
-        
-        # Copy to shared volume with better error handling
-        if [ -d "/shared" ] && [ -w "/shared" ]; then
-            if cp /app/.env.publishable /shared/; then
-                echo "✓ Publishable key saved to shared volume"
-            else
-                echo "⚠️ Failed to copy to shared volume but continuing"
-            fi
-        else
-            echo "⚠️ Shared volume not writable, skipping copy"
+        # IMPORTANT: Display key for manual configuration if it was auto-generated
+        if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || [ "$MEDUSA_PUBLISHABLE_KEY" != "$new_key" ]; then
+            echo ""
+            echo "🔑 IMPORTANT: Add this to Dokploy environment variables:"
+            echo "   Variable: MEDUSA_PUBLISHABLE_KEY"
+            echo "   Value: $new_key"
+            echo ""
         fi
         
-        key_display=$(echo "$new_key" | cut -c1-20)
-        echo "✓ Using publishable key: ${key_display}..."
-        
-        # Verify the key exists
+        # Verify key exists
         verification=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
             psql -h "$DB_HOST" -p "$DB_PORT" \
             -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
@@ -324,7 +291,7 @@ create_publishable_key() {
             return 1
         fi
     else
-        echo "❌ Failed to insert publishable key: $insert_result"
+        echo "❌ Failed to store publishable key: $insert_result"
         return 1
     fi
 }
@@ -334,7 +301,12 @@ start_production_server() {
     echo "Starting production Medusa server..."
     echo "- Admin: DISABLED"
     echo "- Port: $PORT"
-    echo "- Publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+    if [ -n "$MEDUSA_PUBLISHABLE_KEY" ]; then
+        key_display=$(echo "$MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
+        echo "- Publishable key: ${key_display}..."
+    else
+        echo "- Publishable key: NOT SET"
+    fi
     
     # Ensure admin is disabled for production
     export ADMIN_DISABLED=true
@@ -370,7 +342,7 @@ main() {
     # Seed database (with conflict handling)
     seed_database
     
-    # Create publishable key (with multiple fallbacks)
+    # Create/verify publishable key (NO FILE OPERATIONS)
     if ! create_publishable_key; then
         echo "❌ Failed to create publishable key"
         exit 1

@@ -4,63 +4,35 @@ set -e
 echo "Waiting for backend to be ready..."
 
 BACKEND_URL=${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://backend:9000}
-MAX_RETRIES=120
+MAX_RETRIES=60
 RETRY_COUNT=0
 
-BACKEND_HOST=$(echo $BACKEND_URL | sed 's|http://||' | cut -d: -f1)
-BACKEND_PORT=$(echo $BACKEND_URL | sed 's|http://||' | cut -d: -f2)
+echo "Checking backend readiness at $BACKEND_URL"
 
-if [ "$BACKEND_HOST" = "$BACKEND_PORT" ]; then
-    BACKEND_PORT=9000
-fi
-
-echo "Checking backend readiness at $BACKEND_HOST:$BACKEND_PORT"
-
-# Wait for backend health
+# Wait for backend health check
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if curl -f -m 5 "$BACKEND_URL/health" >/dev/null 2>&1; then
         echo "✓ Backend health check passed"
         
-        # Check for publishable key in multiple locations
-        publishable_key=""
-        
-        # Method 1: Check environment variable
+        # SIMPLIFIED: Only check environment variable (no file operations)
         if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
-            publishable_key="$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY"
-            # Use sh-compatible substring extraction
-            key_display=$(echo "$publishable_key" | cut -c1-20)
-            echo "✓ Found publishable key in environment: ${key_display}..."
-        # Method 2: Check shared volume file
-        elif [ -f "/shared/.env.publishable" ]; then
-            echo "✓ Loading publishable key from shared volume..."
-            . /shared/.env.publishable
-            if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
-                publishable_key="$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY"
-                export NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY="$publishable_key"
-                key_display=$(echo "$publishable_key" | cut -c1-20)
-                echo "✓ Publishable key loaded from shared volume: ${key_display}..."
-            elif [ -n "$MEDUSA_PUBLISHABLE_KEY" ]; then
-                publishable_key="$MEDUSA_PUBLISHABLE_KEY"
-                export NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY="$publishable_key"
-                key_display=$(echo "$publishable_key" | cut -c1-20)
-                echo "✓ Publishable key loaded from shared volume: ${key_display}..."
-            fi
-        fi
-        
-        # Test API with publishable key if available
-        if [ -n "$publishable_key" ]; then
+            key_display=$(echo "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
+            echo "✓ Found publishable key: ${key_display}..."
+            
+            # Test store API with publishable key
             echo "Testing store API with publishable key..."
             if curl -f -m 10 "$BACKEND_URL/store/regions" \
-               -H "x-publishable-api-key: $publishable_key" >/dev/null 2>&1; then
-                echo "✓ Store API test successful with publishable key"
+               -H "x-publishable-api-key: $NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" >/dev/null 2>&1; then
+                echo "✓ Store API test successful"
                 break
             else
-                echo "⚠️ Store API test failed with key, but continuing..."
-                # Still break because backend is responsive
+                echo "⚠️ Store API test failed, but backend is responsive"
+                echo "⚠️ This may indicate the key is not yet in the database"
                 break
             fi
         else
-            echo "⚠️ No publishable key found, continuing without API verification..."
+            echo "⚠️ No publishable key found in environment"
+            echo "⚠️ Build will use fallback mechanisms"
             break
         fi
     else
@@ -68,18 +40,24 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     fi
     
     RETRY_COUNT=$((RETRY_COUNT + 1))
-    sleep 3
+    sleep 5
 done
 
+# Final status
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "❌ Backend failed to become ready in time"
-    echo "⚠️ Proceeding with build anyway..."
+    echo "❌ Backend failed to become ready within timeout"
+    echo "⚠️ Proceeding with build anyway (will use fallbacks)"
+else
+    echo "✓ Backend is ready"
 fi
 
-# Use sh-compatible way to display key or fallback
+# Display final status
 if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
     key_display=$(echo "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
     echo "✓ Starting storefront build with key: ${key_display}..."
 else
-    echo "✓ Starting storefront build with no publishable key..."
+    echo "⚠️ Starting storefront build without publishable key"
+    echo "⚠️ Build will use safe fallback mechanisms"
 fi
+
+echo "=== Storefront build starting ==="
