@@ -5,21 +5,21 @@ echo "========================================="
 echo "Medusa B2B Starter - Starting Up (Yarn)"
 echo "========================================="
 
+# Environment setup
 export PGSSLMODE=disable
 export NODE_TLS_REJECT_UNAUTHORIZED=0
 export MIKRO_ORM_SSL=false
 export MIKRO_ORM_REJECT_UNAUTHORIZED=false
-
 export NODE_ENV=${NODE_ENV:-production}
 export PORT=${PORT:-9000}
 export WORKER_MODE=${WORKER_MODE:-shared}
-export ADMIN_DISABLED=true
 
-echo "NODE_ENV: ${NODE_ENV}"
-echo "PORT: ${PORT}"
-echo "WORKER_MODE: ${WORKER_MODE}"
-echo "ADMIN_DISABLED: ${ADMIN_DISABLED}"
+echo "Configuration:"
+echo "- NODE_ENV: ${NODE_ENV}"
+echo "- PORT: ${PORT}"
+echo "- WORKER_MODE: ${WORKER_MODE}"
 
+# Parse database connection details
 parse_db_url() {
     if [ -z "$DATABASE_URL" ]; then
         echo "❌ DATABASE_URL not set"
@@ -30,31 +30,24 @@ parse_db_url() {
     DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*://[^@]*@[^:]*:\([0-9]*\)/.*|\1|p')
     
     if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ]; then
-        echo "❌ Failed to parse DATABASE_URL: $DATABASE_URL"
+        echo "❌ Failed to parse DATABASE_URL"
         exit 1
     fi
     
-    echo "Parsed database: $DB_HOST:$DB_PORT"
+    echo "Database: $DB_HOST:$DB_PORT"
 }
 
+# Test database connectivity
 test_database() {
     parse_db_url
-    
     echo "Testing database connection..."
+    
     for i in $(seq 1 60); do
         if pg_isready -h "$DB_HOST" -p "$DB_PORT" -t 5 2>/dev/null; then
-            echo "✓ Database connection test passed"
-            if PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
-               psql -h "$DB_HOST" -p "$DB_PORT" -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
-               -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" -c "SELECT 1;" >/dev/null 2>&1; then
-                echo "✓ Database accepts connections"
-                return 0
-            else
-                echo "Database port open but not accepting connections yet..."
-            fi
-        else
-            echo "Waiting for database... attempt $i/60 ($(date))"
+            echo "✓ Database connection successful"
+            return 0
         fi
+        echo "Waiting for database... attempt $i/60"
         sleep 5
     done
     
@@ -62,12 +55,8 @@ test_database() {
     return 1
 }
 
+# Test Redis connectivity
 test_redis() {
-    if [ -z "$REDIS_URL" ]; then
-        echo "❌ REDIS_URL not set"
-        exit 1
-    fi
-    
     REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\):.*|\1|p')
     REDIS_PORT=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([0-9]*\).*|\1|p')
     
@@ -76,10 +65,10 @@ test_redis() {
         REDIS_PORT="6379"
     fi
     
-    echo "Testing Redis connection..."
+    echo "Testing Redis connection at $REDIS_HOST:$REDIS_PORT..."
     for i in $(seq 1 30); do
         if nc -z "$REDIS_HOST" "$REDIS_PORT" 2>/dev/null; then
-            echo "✓ Redis connection test passed"
+            echo "✓ Redis connection successful"
             return 0
         fi
         echo "Waiting for Redis... attempt $i/30"
@@ -90,22 +79,17 @@ test_redis() {
     return 1
 }
 
+# Run database migrations
 run_migrations() {
     echo "Running database migrations..."
     
     for attempt in $(seq 1 3); do
         echo "Migration attempt $attempt/3..."
-        set +e
-        migration_output=$(yarn medusa db:migrate 2>&1)
-        migration_exit_code=$?
-        set -e
-        
-        if echo "$migration_output" | grep -E "(✓|completed|success|Migration.*executed)" >/dev/null || [ $migration_exit_code -eq 0 ]; then
+        if yarn medusa db:migrate 2>&1; then
             echo "✓ Migrations completed successfully"
             return 0
         else
             echo "❌ Migration attempt $attempt failed"
-            echo "Migration output: $migration_output"
             if [ $attempt -lt 3 ]; then
                 echo "Retrying in 15 seconds..."
                 sleep 15
@@ -117,148 +101,173 @@ run_migrations() {
     return 1
 }
 
+# Seed database with sample data
 seed_database() {
     echo "Seeding database..."
-    set +e
-    yarn seed 2>/dev/null
+    set +e  # Allow seeding to fail
+    yarn seed 2>/dev/null || echo "⚠️ Seeding failed (continuing anyway)"
     set -e
-    echo "⚠️ Seeding completed (errors ignored)"
 }
 
+# Create publishable key using admin API
 create_publishable_key() {
     echo "Creating publishable key..."
     
-    # Start backend temporarily
-    echo "Starting backend temporarily for key creation..."
-    export MEDUSA_PUBLISHABLE_KEY="pk_temp_$(openssl rand -hex 8)"
-    yarn start &
-    BACKEND_PID=$!
+    # Check if key already exists and is valid
+    if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
+        # Verify key exists in database
+        parse_db_url
+        key_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+            psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+            -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+            -t -c "SELECT COUNT(*) FROM publishable_api_key WHERE id = '$MEDUSA_PUBLISHABLE_KEY';" 2>/dev/null | xargs)
+        
+        if [ "$key_exists" = "1" ]; then
+            echo "✓ Using existing publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+            return 0
+        else
+            echo "⚠️ Provided key not found in database, creating new one..."
+        fi
+    fi
     
-    # Wait for backend to be ready
-    echo "Waiting for backend to start..."
+    echo "Starting temporary admin server for key creation..."
+    
+    # Enable admin and start server in background
+    export MEDUSA_SETUP_PHASE=true
+    export ADMIN_DISABLED=false
+    
+    # Start Medusa with admin enabled
+    yarn start &
+    SERVER_PID=$!
+    
+    # Wait for server to be ready
+    echo "Waiting for admin server to start..."
     for i in $(seq 1 60); do
         if curl -f http://localhost:${PORT}/health >/dev/null 2>&1; then
-            echo "✓ Backend is ready for key creation"
+            echo "✓ Server is ready"
             break
         fi
-        echo "Waiting for backend... $i/60"
+        echo "Waiting for server... $i/60"
         sleep 3
     done
     
-    # Create publishable key through Medusa's API
-    echo "Creating publishable key via Medusa API..."
-    set +e
-    
-    # Create admin user first if needed
+    # Create admin user
+    echo "Creating admin user..."
     curl -X POST http://localhost:${PORT}/admin/users \
         -H "Content-Type: application/json" \
-        -d '{"email":"admin@medusa.com","password":"supersecret"}' \
-        >/dev/null 2>&1
+        -d '{
+            "email": "admin@medusa.com",
+            "password": "supersecret123",
+            "first_name": "Admin",
+            "last_name": "User"
+        }' >/dev/null 2>&1 || echo "Admin user might already exist"
     
-    # Login to get auth token
+    # Authenticate admin user
+    echo "Authenticating admin user..."
     auth_response=$(curl -s -X POST http://localhost:${PORT}/admin/auth/session \
         -H "Content-Type: application/json" \
-        -d '{"email":"admin@medusa.com","password":"supersecret"}' 2>/dev/null)
+        -d '{"email": "admin@medusa.com", "password": "supersecret123"}' \
+        -c /tmp/cookies.txt)
     
-    # Create publishable key
-    key_response=$(curl -s -X POST http://localhost:${PORT}/admin/publishable-api-keys \
-        -H "Content-Type: application/json" \
-        -H "Cookie: connect.sid=$(echo $auth_response | grep -o '"connect.sid":"[^"]*"' | cut -d'"' -f4)" \
-        -d '{"title":"Default Store Key"}' 2>/dev/null)
-    
-    set -e
-    
-    # Extract the key from response
-    if echo "$key_response" | grep -q '"id"'; then
-        new_key=$(echo "$key_response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
-        export MEDUSA_PUBLISHABLE_KEY="$new_key"
-        echo "✓ Created publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+    if echo "$auth_response" | grep -q '"user"'; then
+        echo "✓ Admin authentication successful"
+        
+        # Create publishable API key
+        echo "Creating publishable API key..."
+        key_response=$(curl -s -X POST http://localhost:${PORT}/admin/publishable-api-keys \
+            -H "Content-Type: application/json" \
+            -b /tmp/cookies.txt \
+            -d '{"title": "Default Store Key"}')
+        
+        if echo "$key_response" | grep -q '"id"'; then
+            new_key=$(echo "$key_response" | grep -o '"id":"pk_[^"]*"' | cut -d'"' -f4)
+            echo "✓ Created publishable key: ${new_key:0:20}..."
+            export MEDUSA_PUBLISHABLE_KEY="$new_key"
+            
+            # Save key to environment file
+            echo "MEDUSA_PUBLISHABLE_KEY=$new_key" > /app/.env.publishable
+            echo "✓ Publishable key saved"
+        else
+            echo "❌ Failed to create publishable key via API"
+            echo "Response: $key_response"
+            
+            # Fallback: direct database insert
+            echo "Attempting direct database insertion..."
+            new_key="pk_$(openssl rand -hex 24)"
+            parse_db_url
+            
+            PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+            psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+            -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+            -c "INSERT INTO publishable_api_key (id, title, created_at, updated_at) VALUES ('$new_key', 'Default Store Key', NOW(), NOW()) ON CONFLICT (id) DO NOTHING;" 2>/dev/null
+            
+            export MEDUSA_PUBLISHABLE_KEY="$new_key"
+            echo "MEDUSA_PUBLISHABLE_KEY=$new_key" > /app/.env.publishable
+            echo "✓ Fallback key created: ${new_key:0:20}..."
+        fi
     else
-        echo "⚠️ API key creation failed, using CLI method..."
-        
-        # Fallback: Create via direct database insert
-        new_key="pk_$(openssl rand -hex 16)"
-        export MEDUSA_PUBLISHABLE_KEY="$new_key"
-        
-        # Insert directly into database
-        PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
-        psql -h "$DB_HOST" -p "$DB_PORT" -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
-        -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
-        -c "INSERT INTO publishable_api_key (id, title, created_at, updated_at) VALUES ('$new_key', 'Default Store Key', NOW(), NOW()) ON CONFLICT (id) DO NOTHING;" >/dev/null 2>&1
-        
-        echo "✓ Created publishable key via database: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+        echo "❌ Admin authentication failed"
+        echo "Response: $auth_response"
+        return 1
     fi
     
-    # Stop temporary backend
-    echo "Stopping temporary backend..."
-    kill $BACKEND_PID 2>/dev/null || true
-    wait $BACKEND_PID 2>/dev/null || true
-    sleep 5
+    # Stop temporary server
+    echo "Stopping temporary admin server..."
+    kill $SERVER_PID 2>/dev/null || true
+    wait $SERVER_PID 2>/dev/null || true
+    sleep 3
     
-    # Write key to file for storefront
-    echo "MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" > /app/.env.publishable
-    echo "✓ Publishable key saved for storefront"
+    # Cleanup
+    rm -f /tmp/cookies.txt
+    unset MEDUSA_SETUP_PHASE
+    export ADMIN_DISABLED=true
+    
+    echo "✓ Publishable key creation completed"
 }
 
-check_port() {
-    if nc -z localhost "$PORT" 2>/dev/null; then
-        echo "❌ Port $PORT is already in use"
-        exit 1
-    fi
-}
-
-start_medusa() {
-    echo "Starting Medusa server..."
-    echo "Admin disabled - backend API only"
-    echo "Publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+# Start production server
+start_production_server() {
+    echo "Starting production Medusa server..."
+    echo "- Admin: DISABLED"
+    echo "- Port: $PORT"
+    echo "- Publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
     
-    export MEDUSA_PUBLISHABLE_KEY
+    # Disable admin for production
+    export ADMIN_DISABLED=true
+    unset MEDUSA_SETUP_PHASE
     
-    set +e
     exec yarn start
 }
 
+# Main execution flow
 main() {
-    echo "Starting main initialization..."
+    echo "Starting Medusa B2B initialization..."
     
-    check_port
+    # Basic connectivity tests
+    test_database || exit 1
+    test_redis || exit 1
     
-    if ! test_database; then
-        echo "Database test failed, exiting"
-        exit 1
-    fi
-    
-    if ! test_redis; then
-        echo "Redis test failed, exiting"
-        exit 1
-    fi
-
-    if ! run_migrations; then
-        echo "Migrations failed, exiting"
-        exit 1
-    fi
-    
+    # Database setup
+    run_migrations || exit 1
     seed_database
     
-    # Create publishable key if not provided or if temp key
-    if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || echo "$MEDUSA_PUBLISHABLE_KEY" | grep -q "pk_temp"; then
-        create_publishable_key
-    else
-        echo "✓ Using provided publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
-    fi
+    # Create publishable key with admin enabled
+    create_publishable_key || exit 1
     
-    echo "All checks passed, starting Medusa..."
-    start_medusa
+    # Start production server with admin disabled
+    start_production_server
 }
 
+# Error handling
 error_handler() {
     echo "❌ Startup failed at line $1"
-    echo "Last command exit code: $?"
-    echo "Container will restart automatically..."
+    echo "Exit code: $?"
     exit 1
 }
 
 trap 'error_handler $LINENO' ERR
 
-echo "Calling main function..."
+# Execute main function
 main "$@"

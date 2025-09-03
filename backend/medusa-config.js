@@ -8,11 +8,13 @@ loadEnv(process.env.NODE_ENV || "production", process.cwd());
 
 const isBuilding = process.argv.includes('build') || process.env.MEDUSA_BUILD === 'true';
 
-// Force admin disabled for production deployment
-const disableAdmin = process.env.NODE_ENV === 'production' ? true : (process.env.ADMIN_DISABLED === "true");
+// Enable admin during setup phase, disable in normal operation
+const isSetupPhase = process.env.MEDUSA_SETUP_PHASE === 'true';
+const disableAdmin = isSetupPhase ? false : (process.env.NODE_ENV === 'production' ? true : (process.env.ADMIN_DISABLED === "true"));
 
 console.log("Medusa Configuration:");
 console.log("- NODE_ENV:", process.env.NODE_ENV);
+console.log("- Setup phase:", isSetupPhase);
 console.log("- Admin disabled:", disableAdmin);
 console.log("- Is building:", isBuilding);
 
@@ -57,7 +59,8 @@ module.exports = defineConfig({
   },
   admin: {
     disable: disableAdmin,
-    serve: false,  // Force disabled serving
+    // Enable serving during setup phase
+    serve: isSetupPhase,  
     outDir: ".medusa/admin"
   },
   modules: {

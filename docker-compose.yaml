@@ -14,12 +14,19 @@ services:
       - medusa_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "medusa_db"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}", "-d", "${POSTGRES_DB:-medusa_db}"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
-
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
   redis:
     image: redis:7-alpine
     container_name: medusa-redis
@@ -56,6 +63,8 @@ services:
       ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
       AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
       TS_NODE_TRANSPILE_ONLY: "true"
+      # Provide initial publishable key if available
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,14 +75,29 @@ services:
     networks:
       - medusa_network
     restart: unless-stopped
+    volumes:
+      # Share publishable key with storefront
+      - shared_data:/shared
     healthcheck:
+      # Use simple health endpoint that doesn't require auth
       test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 15s
       timeout: 10s
-      retries: 20
-      start_period: 180s  # Increased for key creation
-    volumes:
-      - publishable_key_volume:/app/.env.publishable:ro  # Share key with storefront
+      retries: 15
+      start_period: 120s  # Allow time for key creation
+    # Copy publishable key to shared volume after creation
+    command: >
+      sh -c "
+        /app/startup.sh &
+        STARTUP_PID=$$!
+        
+        # Wait for startup to complete and copy key if it exists
+        wait $$STARTUP_PID
+        if [ -f /app/.env.publishable ]; then
+          cp /app/.env.publishable /shared/
+          echo 'Publishable key copied to shared volume'
+        fi
+      "
 
   storefront:
     build:
@@ -94,12 +118,13 @@ services:
       - medusa_network
     restart: unless-stopped
     volumes:
-      - publishable_key_volume:/app/.env.publishable:ro  # Share key from backend
+      # Access shared publishable key
+      - shared_data:/shared:ro
 
 volumes:
   postgres_data:
     driver: local
-  publishable_key_volume:
+  shared_data:
     driver: local
 
 networks:
