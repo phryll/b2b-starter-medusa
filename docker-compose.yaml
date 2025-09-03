@@ -43,7 +43,6 @@ services:
       start_period: 30s
 
 
-
   backend:
       build:
         context: ./backend
@@ -77,41 +76,50 @@ services:
         - medusa_network
       restart: unless-stopped
       volumes:
-        # Mount shared volume for publishable key
+        # Mount shared volume with proper permissions
         - shared_data:/shared
       healthcheck:
         test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
         interval: 15s
         timeout: 10s
         retries: 15
-        start_period: 90s
-      # Fixed command that properly copies the file
+        start_period: 120s  # Increased for key creation time
+      # Fixed entrypoint and command to handle permissions properly
       entrypoint: ["/sbin/tini", "--"]
       command: >
         sh -c "
-          echo 'Starting backend with key sharing...'
+          echo 'Setting up shared volume permissions...'
           
-          # Run the main startup script in background
-          /app/startup.sh &
-          STARTUP_PID=$$!
+          # Ensure shared directory exists and has correct permissions
+          # Run as root initially to set up permissions
+          mkdir -p /shared
+          chown 1001:1001 /shared 2>/dev/null || echo 'Could not change ownership (may not have root)'
+          chmod 755 /shared
           
-          # Wait a bit for startup to begin
-          sleep 10
+          echo 'Starting backend as nodejs user...'
           
-          # Monitor for the publishable key file and copy it when available
-          while kill -0 $$STARTUP_PID 2>/dev/null; do
-            if [ -f /app/.env.publishable ]; then
-              echo 'Copying publishable key to shared volume...'
-              cp /app/.env.publishable /shared/
-              echo 'Key copied to shared volume'
-              break
-            fi
-            sleep 2
-          done &
-          
-          # Wait for main process
-          wait $$STARTUP_PID
+          # Switch to nodejs user and run startup script
+          # Use su-exec if available, otherwise try su
+          if command -v su-exec >/dev/null 2>&1; then
+            exec su-exec nodejs:nodejs /app/startup.sh
+          elif command -v su >/dev/null 2>&1; then
+            exec su -s /bin/sh nodejs -c '/app/startup.sh'
+          else
+            # Fallback: run as current user
+            echo 'Warning: Running as root user due to missing su-exec/su'
+            exec /app/startup.sh
+          fi
         "
+      # Add resource limits for consistency
+      deploy:
+        resources:
+          limits:
+            cpus: '2.0'
+            memory: 4G
+          reservations:
+            cpus: '1.0'
+            memory: 2G
+
   storefront:
     build:
       context: ./storefront

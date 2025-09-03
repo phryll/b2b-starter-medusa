@@ -27,7 +27,9 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         # Method 1: Check environment variable
         if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
             publishable_key="$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY"
-            echo "✓ Found publishable key in environment: ${publishable_key:0:20}..."
+            # Use sh-compatible substring extraction
+            key_display=$(echo "$publishable_key" | cut -c1-20)
+            echo "✓ Found publishable key in environment: ${key_display}..."
         # Method 2: Check shared volume file
         elif [ -f "/shared/.env.publishable" ]; then
             echo "✓ Loading publishable key from shared volume..."
@@ -35,11 +37,13 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
                 publishable_key="$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY"
                 export NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY="$publishable_key"
-                echo "✓ Publishable key loaded from shared volume: ${publishable_key:0:20}..."
+                key_display=$(echo "$publishable_key" | cut -c1-20)
+                echo "✓ Publishable key loaded from shared volume: ${key_display}..."
             elif [ -n "$MEDUSA_PUBLISHABLE_KEY" ]; then
                 publishable_key="$MEDUSA_PUBLISHABLE_KEY"
                 export NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY="$publishable_key"
-                echo "✓ Publishable key loaded from shared volume: ${publishable_key:0:20}..."
+                key_display=$(echo "$publishable_key" | cut -c1-20)
+                echo "✓ Publishable key loaded from shared volume: ${key_display}..."
             fi
         fi
         
@@ -72,4 +76,10 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "⚠️ Proceeding with build anyway..."
 fi
 
-echo "✓ Starting storefront build with key: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:0:20:-none}..."
+# Use sh-compatible way to display key or fallback
+if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
+    key_display=$(echo "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
+    echo "✓ Starting storefront build with key: ${key_display}..."
+else
+    echo "✓ Starting storefront build with no publishable key..."
+fi
