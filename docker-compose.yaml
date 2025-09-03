@@ -42,63 +42,76 @@ services:
       retries: 10
       start_period: 30s
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      args:
-        CACHEBUST: ${CACHEBUST:-1}
-    container_name: medusa-backend
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      COOKIE_SECRET: ${COOKIE_SECRET}
-      MEDUSA_ADMIN_ONBOARDING_TYPE: ${MEDUSA_ADMIN_ONBOARDING_TYPE:-default}
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${BACKEND_PORT:-9000}
-      WORKER_MODE: ${WORKER_MODE:-shared}
-      NODE_OPTIONS: "--max-old-space-size=3072"
-      STORE_CORS: ${STORE_CORS:-http://localhost:3001}
-      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
-      AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
-      TS_NODE_TRANSPILE_ONLY: "true"
-      # Provide initial publishable key if available
-      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    ports:
-      - "${BACKEND_PORT:-9000}:${BACKEND_PORT:-9000}"
-    networks:
-      - medusa_network
-    restart: unless-stopped
-    volumes:
-      # Share publishable key with storefront
-      - shared_data:/shared
-    healthcheck:
-      # Use simple health endpoint that doesn't require auth
-      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 15
-      start_period: 90s  # Allow time for key creation
-    # Copy publishable key to shared volume after creation
-    command: >
-      sh -c "
-        /app/startup.sh &
-        STARTUP_PID=$$!
-        
-        # Wait for startup to complete and copy key if it exists
-        wait $$STARTUP_PID
-        if [ -f /app/.env.publishable ]; then
-          cp /app/.env.publishable /shared/
-          echo 'Publishable key copied to shared volume'
-        fi
-      "
 
+
+  backend:
+      build:
+        context: ./backend
+        dockerfile: Dockerfile
+        args:
+          CACHEBUST: ${CACHEBUST:-1}
+      container_name: medusa-backend
+      environment:
+        DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
+        REDIS_URL: redis://redis:6379
+        JWT_SECRET: ${JWT_SECRET}
+        COOKIE_SECRET: ${COOKIE_SECRET}
+        NODE_ENV: ${NODE_ENV:-production}
+        PORT: ${BACKEND_PORT:-9000}
+        WORKER_MODE: ${WORKER_MODE:-shared}
+        NODE_OPTIONS: "--max-old-space-size=3072"
+        STORE_CORS: ${STORE_CORS:-http://localhost:3001}
+        ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
+        AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
+        TS_NODE_TRANSPILE_ONLY: "true"
+        # Use the key from Dokploy if provided
+        MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
+      depends_on:
+        postgres:
+          condition: service_healthy
+        redis:
+          condition: service_healthy
+      ports:
+        - "${BACKEND_PORT:-9000}:${BACKEND_PORT:-9000}"
+      networks:
+        - medusa_network
+      restart: unless-stopped
+      volumes:
+        # Mount shared volume for publishable key
+        - shared_data:/shared
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+        interval: 15s
+        timeout: 10s
+        retries: 15
+        start_period: 90s
+      # Fixed command that properly copies the file
+      entrypoint: ["/sbin/tini", "--"]
+      command: >
+        sh -c "
+          echo 'Starting backend with key sharing...'
+          
+          # Run the main startup script in background
+          /app/startup.sh &
+          STARTUP_PID=$$!
+          
+          # Wait a bit for startup to begin
+          sleep 10
+          
+          # Monitor for the publishable key file and copy it when available
+          while kill -0 $$STARTUP_PID 2>/dev/null; do
+            if [ -f /app/.env.publishable ]; then
+              echo 'Copying publishable key to shared volume...'
+              cp /app/.env.publishable /shared/
+              echo 'Key copied to shared volume'
+              break
+            fi
+            sleep 2
+          done &
+          
+          # Wait for main process
+          wait $$STARTUP_PID
+        "
   storefront:
     build:
       context: ./storefront
@@ -109,6 +122,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${STOREFRONT_PORT:-3001}
       NODE_OPTIONS: "--max-old-space-size=2048"
+      # Pass the publishable key directly to storefront
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
     depends_on:
       backend:
