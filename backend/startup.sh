@@ -180,9 +180,6 @@ validate_database_schema() {
 create_publishable_key() {
     echo "Managing publishable key in database..."
     
-    # CRITICAL CHANGE: Remove all file operations and shared volume attempts
-    # Only work with environment variables and database
-    
     parse_db_url
     
     # Ensure publishable_api_key table exists first
@@ -214,7 +211,7 @@ create_publishable_key() {
         key_display=$(echo "$MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
         echo "Using provided publishable key: ${key_display}..."
         
-        # Check if key exists in database
+        # Verify key exists in database
         key_exists=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
             psql -h "$DB_HOST" -p "$DB_PORT" \
             -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
@@ -223,16 +220,23 @@ create_publishable_key() {
         
         if [ "$key_exists" = "1" ]; then
             echo "✓ Publishable key verified in database"
-            export MEDUSA_PUBLISHABLE_KEY="$MEDUSA_PUBLISHABLE_KEY"
             return 0
         else
-            echo "⚠️ Provided key not found in database, inserting it..."
+            echo "⚠️ Provided key not found in database, will insert it"
             new_key="$MEDUSA_PUBLISHABLE_KEY"
         fi
     else
-        echo "No publishable key provided via environment, generating new one..."
+        echo "No publishable key provided - generating fresh key..."
         
-        # Generate new key using available methods
+        # CLEAR ANY EXISTING KEYS to avoid conflicts
+        echo "Clearing any existing publishable keys..."
+        PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+            psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+            -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+            -c "DELETE FROM publishable_api_key;" 2>/dev/null || echo "No existing keys to clear"
+        
+        # Generate completely new key
         if command -v openssl >/dev/null 2>&1; then
             random_hex=$(openssl rand -hex 24)
             new_key="pk_${random_hex}"
@@ -240,7 +244,6 @@ create_publishable_key() {
             random_hex=$(dd if=/dev/urandom bs=24 count=1 2>/dev/null | xxd -p -c 24)
             new_key="pk_${random_hex}"
         else
-            # Fallback method for restricted environments
             timestamp=$(date +%s)
             pid=$$
             random_suffix=$(echo "${timestamp}${pid}" | sha256sum | cut -c1-48)
@@ -248,17 +251,17 @@ create_publishable_key() {
         fi
         
         key_display=$(echo "$new_key" | cut -c1-20)
-        echo "Generated new key: ${key_display}..."
+        echo "Generated fresh key: ${key_display}..."
     fi
     
-    # Insert/update the key in database
+    # Insert the key into database
     echo "Storing publishable key in database..."
     insert_result=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
         psql -h "$DB_HOST" -p "$DB_PORT" \
         -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
         -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
         -c "INSERT INTO publishable_api_key (id, title, created_at, updated_at) 
-            VALUES ('$new_key', 'Medusa Store Key', NOW(), NOW()) 
+            VALUES ('$new_key', 'Fresh Store Key', NOW(), NOW()) 
             ON CONFLICT (id) DO UPDATE SET updated_at = NOW()
             RETURNING id;" 2>&1)
     
@@ -267,14 +270,14 @@ create_publishable_key() {
         key_display=$(echo "$new_key" | cut -c1-20)
         echo "✓ Publishable key ready: ${key_display}..."
         
-        # IMPORTANT: Display key for manual configuration if it was auto-generated
-        if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || [ "$MEDUSA_PUBLISHABLE_KEY" != "$new_key" ]; then
-            echo ""
-            echo "🔑 IMPORTANT: Add this to Dokploy environment variables:"
-            echo "   Variable: MEDUSA_PUBLISHABLE_KEY"
-            echo "   Value: $new_key"
-            echo ""
-        fi
+        # Display the complete key for Dokploy configuration
+        echo ""
+        echo "🔑 COPY THIS KEY TO DOKPLOY:"
+        echo "   Variable: MEDUSA_PUBLISHABLE_KEY"
+        echo "   Value: $new_key"
+        echo ""
+        echo "After copying, redeploy to ensure both containers use this key."
+        echo ""
         
         # Verify key exists
         verification=$(PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \

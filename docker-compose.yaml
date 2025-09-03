@@ -71,7 +71,7 @@ services:
       ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
       AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
       TS_NODE_TRANSPILE_ONLY: "true"
-      # Key will be passed via environment variables only
+      # This will be empty for reset, then set after key generation
       MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
     depends_on:
       postgres:
@@ -89,7 +89,6 @@ services:
       timeout: 10s
       retries: 15
       start_period: 120s
-    # Simplified approach - no privilege operations needed
     entrypoint: ["/sbin/tini", "--"]
     command: ["/app/startup.sh"]
     deploy:
@@ -101,42 +100,6 @@ services:
           cpus: '1.0'
           memory: 2G
 
-  # Key service to provide publishable key via HTTP
-  key-service:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      args:
-        CACHEBUST: ${CACHEBUST:-1}
-    container_name: medusa-key-service
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medusa_db}?sslmode=disable
-      NODE_ENV: production
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - medusa_network
-    restart: "no"  # Run once to get key
-    # Simple key fetcher service
-    command: >
-      sh -c "
-        echo 'Fetching publishable key from database...'
-        sleep 5
-        key=$$(PGPASSWORD=\"$$(echo \"$$DATABASE_URL\" | sed -n 's|.*://[^:]*:\\([^@]*\\)@.*|\\1|p')\" \\
-               psql -h postgres -p 5432 \\
-               -U \"$$(echo \"$$DATABASE_URL\" | sed -n 's|.*://\\([^:]*\\):.*|\\1|p')\" \\
-               -d \"$$(echo \"$$DATABASE_URL\" | sed -n 's|.*/\\([^?]*\\).*|\\1|p')\" \\
-               -t -c \"SELECT id FROM publishable_api_key LIMIT 1;\" 2>/dev/null | xargs || echo '')
-        if [ -n \"$$key\" ]; then
-          echo \"Found publishable key: $${key:0:20}...\"
-          echo \"Set this in Dokploy: MEDUSA_PUBLISHABLE_KEY=$$key\"
-        else
-          echo \"No publishable key found in database\"
-        fi
-        exit 0
-      "
-
   storefront:
     build:
       context: ./storefront
@@ -147,7 +110,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${STOREFRONT_PORT:-3001}
       NODE_OPTIONS: "--max-old-space-size=2048"
-      # Use same key as backend
+      # This will also be empty for reset, then set after key generation
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
     depends_on:
       backend:
