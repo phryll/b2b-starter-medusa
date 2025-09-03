@@ -37,6 +37,15 @@ parse_db_url() {
     echo "Database: $DB_HOST:$DB_PORT"
 }
 
+# Check if port is already in use
+check_port() {
+    if nc -z localhost "$PORT" 2>/dev/null; then
+        echo "❌ Port $PORT is already in use"
+        exit 1
+    fi
+    echo "✓ Port $PORT is available"
+}
+
 # Test database connectivity
 test_database() {
     parse_db_url
@@ -109,7 +118,7 @@ seed_database() {
     set -e
 }
 
-# Create publishable key using admin API
+# Create publishable key via direct database insertion
 create_publishable_key() {
     echo "Creating publishable key via direct database insertion..."
     
@@ -175,7 +184,7 @@ start_production_server() {
     echo "- Port: $PORT"
     echo "- Publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
     
-    # Disable admin for production
+    # Ensure admin is disabled for production
     export ADMIN_DISABLED=true
     unset MEDUSA_SETUP_PHASE
     
@@ -184,7 +193,7 @@ start_production_server() {
 
 # Main execution flow
 main() {
-    echo "Starting main initialization..."
+    echo "Starting Medusa B2B initialization..."
     
     check_port
     
