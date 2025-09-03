@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-medusa_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # Must be set in .env or Dokploy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -19,14 +19,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
   redis:
     image: redis:7-alpine
@@ -64,7 +56,6 @@ services:
       ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000}
       AUTH_CORS: ${AUTH_CORS:-http://localhost:9000}
       TS_NODE_TRANSPILE_ONLY: "true"
-      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,7 +66,14 @@ services:
     networks:
       - medusa_network
     restart: unless-stopped
-    # NO healthcheck here - using the one from Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 180s  # Increased for key creation
+    volumes:
+      - publishable_key_volume:/app/.env.publishable:ro  # Share key with storefront
 
   storefront:
     build:
@@ -84,22 +82,24 @@ services:
     container_name: medusa-storefront
     environment:
       NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_URL:-http://backend:9000}
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY},
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${STOREFRONT_PORT:-3001}
       NODE_OPTIONS: "--max-old-space-size=2048"
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "${STOREFRONT_PORT:-3001}:${STOREFRONT_PORT:-3001}"
     networks:
       - medusa_network
     restart: unless-stopped
-    # NO healthcheck here - using the one from Dockerfile
+    volumes:
+      - publishable_key_volume:/app/.env.publishable:ro  # Share key from backend
 
 volumes:
   postgres_data:
+    driver: local
+  publishable_key_volume:
     driver: local
 
 networks:

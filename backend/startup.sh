@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 echo "========================================="
@@ -20,15 +20,6 @@ echo "PORT: ${PORT}"
 echo "WORKER_MODE: ${WORKER_MODE}"
 echo "ADMIN_DISABLED: ${ADMIN_DISABLED}"
 
-# Check if publishable key is provided
-if [ -n "$MEDUSA_PUBLISHABLE_KEY" ] && [ "$MEDUSA_PUBLISHABLE_KEY" != "" ]; then
-    echo "✓ Using pre-configured publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
-else
-    echo "⚠️ No publishable key provided, will generate one"
-fi
-
-echo ""
-
 parse_db_url() {
     if [ -z "$DATABASE_URL" ]; then
         echo "❌ DATABASE_URL not set"
@@ -44,28 +35,6 @@ parse_db_url() {
     fi
     
     echo "Parsed database: $DB_HOST:$DB_PORT"
-}
-
-parse_redis_url() {
-    if [ -z "$REDIS_URL" ]; then
-        echo "❌ REDIS_URL not set"
-        exit 1
-    fi
-    
-    REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\):.*|\1|p')
-    REDIS_PORT=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([0-9]*\).*|\1|p')
-    
-    if [ -z "$REDIS_HOST" ]; then
-        REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\)|\1|p')
-        REDIS_PORT="6379"
-    fi
-    
-    if [ -z "$REDIS_HOST" ]; then
-        echo "❌ Failed to parse REDIS_URL: $REDIS_URL"
-        exit 1
-    fi
-    
-    echo "Parsed Redis: $REDIS_HOST:$REDIS_PORT"
 }
 
 test_database() {
@@ -94,7 +63,18 @@ test_database() {
 }
 
 test_redis() {
-    parse_redis_url
+    if [ -z "$REDIS_URL" ]; then
+        echo "❌ REDIS_URL not set"
+        exit 1
+    fi
+    
+    REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\):.*|\1|p')
+    REDIS_PORT=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([0-9]*\).*|\1|p')
+    
+    if [ -z "$REDIS_HOST" ]; then
+        REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\)|\1|p')
+        REDIS_PORT="6379"
+    fi
     
     echo "Testing Redis connection..."
     for i in $(seq 1 30); do
@@ -137,65 +117,87 @@ run_migrations() {
     return 1
 }
 
-create_publishable_key() {
-    echo "Creating publishable key..."
-    
-    # Wait for backend to be fully ready
-    for i in $(seq 1 30); do
-        if curl -f http://localhost:${PORT}/health >/dev/null 2>&1; then
-            break
-        fi
-        echo "Waiting for backend to be ready for key creation... $i/30"
-        sleep 2
-    done
-    
-    # Create publishable key via Medusa CLI or API
-    if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || [ "$MEDUSA_PUBLISHABLE_KEY" = "" ]; then
-        echo "Creating new publishable key..."
-        
-        # Option A: Use Medusa CLI to create publishable key
-        set +e
-        key_output=$(yarn medusa exec "
-            const { PG_URL } = process.env;
-            const publishableKeyService = container.resolve('publishableKeyService');
-            publishableKeyService.create().then(key => {
-                console.log('PUBLISHABLE_KEY:' + key.id);
-                process.exit(0);
-            }).catch(e => {
-                console.error('Failed to create key:', e);
-                process.exit(1);
-            });
-        " 2>/dev/null)
-        set -e
-        
-        if echo "$key_output" | grep -q "PUBLISHABLE_KEY:"; then
-            new_key=$(echo "$key_output" | grep "PUBLISHABLE_KEY:" | cut -d: -f2)
-            export MEDUSA_PUBLISHABLE_KEY="$new_key"
-            echo "✓ Created publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
-        else
-            echo "⚠️ Failed to create publishable key, using fallback"
-            fallback_key="pk_dev_$(openssl rand -hex 16)"
-            export MEDUSA_PUBLISHABLE_KEY="$fallback_key"
-        fi
-    fi
-}
-
-ensure_publishable_key() {
-    # Only generate key if not already provided
-    if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || [ "$MEDUSA_PUBLISHABLE_KEY" = "" ]; then
-        echo "Generating fallback publishable key..."
-        fallback_key="pk_dev_$(openssl rand -hex 16)"
-        export MEDUSA_PUBLISHABLE_KEY="$fallback_key"
-        echo "✓ Fallback key created: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
-    fi
-}
-
 seed_database() {
     echo "Seeding database..."
     set +e
     yarn seed 2>/dev/null
     set -e
     echo "⚠️ Seeding completed (errors ignored)"
+}
+
+create_publishable_key() {
+    echo "Creating publishable key..."
+    
+    # Start backend temporarily
+    echo "Starting backend temporarily for key creation..."
+    export MEDUSA_PUBLISHABLE_KEY="pk_temp_$(openssl rand -hex 8)"
+    yarn start &
+    BACKEND_PID=$!
+    
+    # Wait for backend to be ready
+    echo "Waiting for backend to start..."
+    for i in $(seq 1 60); do
+        if curl -f http://localhost:${PORT}/health >/dev/null 2>&1; then
+            echo "✓ Backend is ready for key creation"
+            break
+        fi
+        echo "Waiting for backend... $i/60"
+        sleep 3
+    done
+    
+    # Create publishable key through Medusa's API
+    echo "Creating publishable key via Medusa API..."
+    set +e
+    
+    # Create admin user first if needed
+    curl -X POST http://localhost:${PORT}/admin/users \
+        -H "Content-Type: application/json" \
+        -d '{"email":"admin@medusa.com","password":"supersecret"}' \
+        >/dev/null 2>&1
+    
+    # Login to get auth token
+    auth_response=$(curl -s -X POST http://localhost:${PORT}/admin/auth/session \
+        -H "Content-Type: application/json" \
+        -d '{"email":"admin@medusa.com","password":"supersecret"}' 2>/dev/null)
+    
+    # Create publishable key
+    key_response=$(curl -s -X POST http://localhost:${PORT}/admin/publishable-api-keys \
+        -H "Content-Type: application/json" \
+        -H "Cookie: connect.sid=$(echo $auth_response | grep -o '"connect.sid":"[^"]*"' | cut -d'"' -f4)" \
+        -d '{"title":"Default Store Key"}' 2>/dev/null)
+    
+    set -e
+    
+    # Extract the key from response
+    if echo "$key_response" | grep -q '"id"'; then
+        new_key=$(echo "$key_response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+        export MEDUSA_PUBLISHABLE_KEY="$new_key"
+        echo "✓ Created publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+    else
+        echo "⚠️ API key creation failed, using CLI method..."
+        
+        # Fallback: Create via direct database insert
+        new_key="pk_$(openssl rand -hex 16)"
+        export MEDUSA_PUBLISHABLE_KEY="$new_key"
+        
+        # Insert directly into database
+        PGPASSWORD="$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')" \
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')" \
+        -d "$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')" \
+        -c "INSERT INTO publishable_api_key (id, title, created_at, updated_at) VALUES ('$new_key', 'Default Store Key', NOW(), NOW()) ON CONFLICT (id) DO NOTHING;" >/dev/null 2>&1
+        
+        echo "✓ Created publishable key via database: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+    fi
+    
+    # Stop temporary backend
+    echo "Stopping temporary backend..."
+    kill $BACKEND_PID 2>/dev/null || true
+    wait $BACKEND_PID 2>/dev/null || true
+    sleep 5
+    
+    # Write key to file for storefront
+    echo "MEDUSA_PUBLISHABLE_KEY=$MEDUSA_PUBLISHABLE_KEY" > /app/.env.publishable
+    echo "✓ Publishable key saved for storefront"
 }
 
 check_port() {
@@ -208,7 +210,7 @@ check_port() {
 start_medusa() {
     echo "Starting Medusa server..."
     echo "Admin disabled - backend API only"
-    echo "Publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
+    echo "Publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
     
     export MEDUSA_PUBLISHABLE_KEY
     
@@ -238,18 +240,12 @@ main() {
     
     seed_database
     
-    # Start backend temporarily to create publishable key
-    echo "Starting backend temporarily for key creation..."
-    yarn start &
-    BACKEND_PID=$!
-    
-    sleep 10
-    create_publishable_key
-    
-    # Stop temporary backend
-    kill $BACKEND_PID 2>/dev/null || true
-    wait $BACKEND_PID 2>/dev/null || true
-    sleep 5
+    # Create publishable key if not provided or if temp key
+    if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || echo "$MEDUSA_PUBLISHABLE_KEY" | grep -q "pk_temp"; then
+        create_publishable_key
+    else
+        echo "✓ Using provided publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:20}..."
+    fi
     
     echo "All checks passed, starting Medusa..."
     start_medusa
