@@ -1,4 +1,3 @@
-// medusa-config.js
 const { loadEnv, defineConfig, Modules } = require("@medusajs/framework/utils");
 
 const COMPANY_MODULE = "company";
@@ -7,13 +6,12 @@ const APPROVAL_MODULE = "approval";
 
 loadEnv(process.env.NODE_ENV || "production", process.cwd());
 
-// Only validate environment variables at runtime, not during build
 const isBuilding = process.argv.includes('build') || process.env.MEDUSA_BUILD === 'true';
 
+// Use consistent environment variable name
 const disableAdmin = process.env.ADMIN_DISABLED === "true" || false;
 
 if (!isBuilding) {
-  // Validate required environment variables only at runtime
   const requiredEnvVars = [
     'DATABASE_URL',
     'REDIS_URL',
@@ -30,19 +28,19 @@ if (!isBuilding) {
 
 module.exports = defineConfig({
   projectConfig: {
-    databaseUrl: process.env.DATABASE_URL || "postgres://dummy:dummy@localhost:5432/dummy?sslmode=disable", // Fallback for build
+    databaseUrl: process.env.DATABASE_URL || "postgres://dummy:dummy@localhost:5432/dummy?sslmode=disable", 
     database_type: "postgres",
     databaseDriverOptions: {
       connection: {
-        ssl: false,  // This completely disables SSL
+        ssl: false,  
         rejectUnauthorized: false
       }
     },   
     database_extra: {
-      ssl: false,  // Force SSL off
+      ssl: false,  
       rejectUnauthorized: false
     },
-    redisUrl: process.env.REDIS_URL || "redis://localhost:6379", // Fallback for build
+    redisUrl: process.env.REDIS_URL || "redis://localhost:6379", 
     workerMode: process.env.WORKER_MODE || "shared",
     http: {
       storeCors: process.env.STORE_CORS || "*",
@@ -54,7 +52,7 @@ module.exports = defineConfig({
   },
   admin: {
     disable: disableAdmin,
-    serve: true,          // always serve the built admin
+    serve: !disableAdmin,          
     outDir: ".medusa/admin"
   },
   modules: {

@@ -58,28 +58,37 @@ parse_redis_url() {
     echo "Parsed Redis: $REDIS_HOST:$REDIS_PORT"
 }
 
-create_health_endpoint() {
-    mkdir -p /tmp/health
-    cat > /tmp/health/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head><title>Starting</title></head>
-<body>
-<h1>Medusa Backend Starting</h1>
-<p>Status: Initializing...</p>
-<script>setTimeout(function(){location.reload()}, 5000);</script>
-</body>
-</html>
-EOF
+verify_admin_build() {
+    echo "Verifying admin build..."
+    if [ "$ADMIN_DISABLED" = "true" ]; then
+        echo "✓ Admin disabled, skipping verification"
+        return 0
+    fi
+    
+    if [ -f ".medusa/admin/index.html" ]; then
+        echo "✓ Admin build found and verified"
+        return 0
+    else
+        echo "❌ Admin build missing, attempting emergency rebuild..."
+        return 1
+    fi
 }
 
-build_admin_if_needed() {
-    if [ ! -d ".medusa/admin" ] || [ -z "$(ls -A .medusa/admin 2>/dev/null)" ]; then
-        echo "Admin UI not found, building now (this will take 5-10 minutes on first start)..."
-        NODE_OPTIONS="--max-old-space-size=2048" yarn build:admin || echo "⚠️ Admin build failed, continuing without admin UI"
-    else
-        echo "✓ Admin UI already built"
+emergency_admin_rebuild() {
+    echo "Attempting emergency admin rebuild..."
+    
+    # Try to rebuild admin only
+    if NODE_OPTIONS="--max-old-space-size=2048" yarn medusa build --admin-only 2>&1; then
+        if [ -f ".medusa/admin/index.html" ]; then
+            echo "✓ Emergency admin rebuild successful"
+            return 0
+        fi
     fi
+    
+    echo "❌ Emergency admin rebuild failed"
+    echo "Setting ADMIN_DISABLED=true to continue without admin UI"
+    export ADMIN_DISABLED=true
+    return 1
 }
 
 test_database() {
@@ -130,7 +139,7 @@ run_migrations() {
     for attempt in $(seq 1 3); do
         echo "Migration attempt $attempt/3..."
         # Ignore CLI errors but check if migrations actually run
-        if yarn medusa db:migrate 2>&1 | grep -E "(✓|completed|success)" >/dev/null; then
+        if yarn medusa db:migrate 2>&1 | grep -E "(✓|completed|success|Migration.*executed)" >/dev/null; then
             echo "✓ Migrations completed successfully"
             return 0
         else
@@ -161,18 +170,11 @@ check_port() {
 
 start_medusa() {
     echo "Starting Medusa server..."
-    # Use node directly to bypass CLI issues
-    if [ -f ".medusa/server/src/index.js" ]; then
-        echo "Starting from compiled server..."
-        exec node .medusa/server/src/index.js
-    else
-        echo "Starting with yarn (may show CLI warnings)..."
-        exec yarn start
-    fi
+    echo "Admin status: ${ADMIN_DISABLED:-false}"
+    exec yarn start
 }
 
 main() {
-    create_health_endpoint
     check_port
     
     if ! test_database; then
@@ -183,7 +185,10 @@ main() {
         exit 1
     fi
     
-    build_admin_if_needed
+    # Verify admin build exists (if admin is enabled)
+    if ! verify_admin_build; then
+        emergency_admin_rebuild || true  # Continue even if rebuild fails
+    fi
 
     if ! run_migrations; then
         exit 1

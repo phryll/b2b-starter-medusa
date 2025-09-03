@@ -50,7 +50,8 @@ RUN yarn config set registry https://registry.yarnpkg.com/ && \
     yarn config set child-concurrency 1 && \
     yarn config set network-concurrency 1 && \
     yarn config set disable-self-update-check true && \
-    yarn install --production=false --network-timeout 1800000  --verbose
+    yarn install --production=false --network-timeout 1800000 --verbose
+
 # ===========================================
 # Stage 2: Application Build
 # ===========================================
@@ -96,17 +97,19 @@ RUN mkdir -p /app/src/api/health && \
     echo '  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString(), uptime: process.uptime() });' >> /app/src/api/health/route.ts && \
     echo '};' >> /app/src/api/health/route.ts
 
-# Build the application with yarn
-ENV DISABLE_ADMIN=true
-RUN yarn build || yarn build
+# Build the application - ADMIN ENABLED for full build
+ENV ADMIN_DISABLED=false
+RUN echo "Building Medusa application with admin enabled..." && \
+    yarn build && \
+    echo "Build completed successfully"
 
-# Verify build worked
-# RUN ls -la /app/.medusa/server/ || (echo "Build failed" && exit 1)
-RUN ls -la /app/.medusa/server/src/modules/ || echo "Build output missing"
-RUN ls -la /app/src/modules/ || echo "Source missing"
-RUN ls -la /app/.medusa/server/src/modules/approval/ || echo "Approval module missing"
-RUN ls -la /app/.medusa/server/src/links/ || echo "Links module missing"
-RUN ls -la /app/.medusa/admin || (echo "Admin build missing!")
+# Verify build outputs exist
+RUN echo "Verifying build outputs..." && \
+    ls -la /app/.medusa/server/ && \
+    ls -la /app/.medusa/admin/ && \
+    test -f /app/.medusa/admin/index.html && \
+    echo "✓ Admin build verified - index.html found" || \
+    (echo "❌ Admin build failed - index.html not found" && exit 1)
 
 # ===========================================
 # Stage 3: Production Runtime
@@ -125,6 +128,9 @@ ENV MIKRO_ORM_REJECT_UNAUTHORIZED=false
 
 # Set port explicitly
 ENV PORT=9000
+
+# Admin configuration for runtime
+ENV ADMIN_DISABLED=false
 
 # Install runtime dependencies
 RUN apk add --no-cache \
@@ -153,6 +159,11 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Copy built application from builder
 COPY --from=build --chown=nodejs:nodejs /app ./
+
+# Verify admin files exist in final image
+RUN test -f /app/.medusa/admin/index.html && \
+    echo "✓ Admin files present in production image" || \
+    (echo "❌ Admin files missing in production image" && exit 1)
 
 # Create required directories
 RUN mkdir -p /app/uploads /app/logs /app/.medusa && \
