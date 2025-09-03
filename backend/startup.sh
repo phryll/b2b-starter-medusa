@@ -137,6 +137,49 @@ run_migrations() {
     return 1
 }
 
+create_publishable_key() {
+    echo "Creating publishable key..."
+    
+    # Wait for backend to be fully ready
+    for i in $(seq 1 30); do
+        if curl -f http://localhost:${PORT}/health >/dev/null 2>&1; then
+            break
+        fi
+        echo "Waiting for backend to be ready for key creation... $i/30"
+        sleep 2
+    done
+    
+    # Create publishable key via Medusa CLI or API
+    if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || [ "$MEDUSA_PUBLISHABLE_KEY" = "" ]; then
+        echo "Creating new publishable key..."
+        
+        # Option A: Use Medusa CLI to create publishable key
+        set +e
+        key_output=$(yarn medusa exec "
+            const { PG_URL } = process.env;
+            const publishableKeyService = container.resolve('publishableKeyService');
+            publishableKeyService.create().then(key => {
+                console.log('PUBLISHABLE_KEY:' + key.id);
+                process.exit(0);
+            }).catch(e => {
+                console.error('Failed to create key:', e);
+                process.exit(1);
+            });
+        " 2>/dev/null)
+        set -e
+        
+        if echo "$key_output" | grep -q "PUBLISHABLE_KEY:"; then
+            new_key=$(echo "$key_output" | grep "PUBLISHABLE_KEY:" | cut -d: -f2)
+            export MEDUSA_PUBLISHABLE_KEY="$new_key"
+            echo "✓ Created publishable key: ${MEDUSA_PUBLISHABLE_KEY:0:8}..."
+        else
+            echo "⚠️ Failed to create publishable key, using fallback"
+            fallback_key="pk_dev_$(openssl rand -hex 16)"
+            export MEDUSA_PUBLISHABLE_KEY="$fallback_key"
+        fi
+    fi
+}
+
 ensure_publishable_key() {
     # Only generate key if not already provided
     if [ -z "$MEDUSA_PUBLISHABLE_KEY" ] || [ "$MEDUSA_PUBLISHABLE_KEY" = "" ]; then
@@ -195,7 +238,18 @@ main() {
     
     seed_database
     
-    ensure_publishable_key
+    # Start backend temporarily to create publishable key
+    echo "Starting backend temporarily for key creation..."
+    yarn start &
+    BACKEND_PID=$!
+    
+    sleep 10
+    create_publishable_key
+    
+    # Stop temporary backend
+    kill $BACKEND_PID 2>/dev/null || true
+    wait $BACKEND_PID 2>/dev/null || true
+    sleep 5
     
     echo "All checks passed, starting Medusa..."
     start_medusa
