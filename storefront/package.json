@@ -44,9 +44,7 @@
     "react-intersection-observer": "^9.3.4",
     "react-markdown": "^9.0.1",
     "server-only": "^0.0.1",
-    "webpack": "^5",
-    "zod": "3.24.4",
-    "zod-validation-error": "3.4.1"
+    "webpack": "^5"
   },
   "devDependencies": {
     "@babel/core": "^7.17.5",
@@ -65,8 +63,9 @@
     "postcss": "^8.4.8",
     "prettier": "^2.8.8",
     "tailwindcss": "^3.4.1",
-    "zod": "3.24.4",
-    "zod-validation-error": "3.4.1",
     "typescript": "^5.5.3"
+  },
+  "peerDependencies": {
+    "zod": "^3.23.0"
   }
 }
