@@ -101,33 +101,39 @@ services:
           memory: 2G
 
   storefront:
-    build:
-      context: ./storefront
-      dockerfile: Dockerfile
-    container_name: medusa-storefront
-    environment:
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_URL:-http://backend:9000}
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${STOREFRONT_PORT:-3001}
-      NODE_OPTIONS: "--max-old-space-size=2048"
-      # This will also be empty for reset, then set after key generation
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "${STOREFRONT_PORT:-3001}:${STOREFRONT_PORT:-3001}"
-    networks:
-      - medusa_network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 3G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
+      build:
+        context: ./storefront
+        dockerfile: Dockerfile
+      container_name: medusa-storefront
+      environment:
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_URL:-http://backend:9000}
+        NODE_ENV: ${NODE_ENV:-production}
+        PORT: ${STOREFRONT_PORT:-3001}
+        NODE_OPTIONS: "--max-old-space-size=2048"
+        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
+      depends_on:
+        backend:
+          condition: service_healthy
+      ports:
+        - "${STOREFRONT_PORT:-3001}:${STOREFRONT_PORT:-3001}"
+      networks:
+        - medusa_network
+      restart: unless-stopped
+      # Extended startup time for build process
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:3001/"]
+        interval: 30s
+        timeout: 15s
+        start_period: 300s  # 5 minutes for build + startup
+        retries: 10
+      deploy:
+        resources:
+          limits:
+            cpus: '1.5'
+            memory: 3G
+          reservations:
+            cpus: '0.5'
+            memory: 1G
 
 volumes:
   postgres_data:

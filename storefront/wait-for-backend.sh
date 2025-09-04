@@ -1,39 +1,35 @@
 #!/bin/sh
 set -e
 
-echo "Waiting for backend to be ready..."
+echo "==============================================="
+echo "Storefront: Waiting for backend before build"
+echo "==============================================="
 
 BACKEND_URL=${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://backend:9000}
 MAX_RETRIES=60
 RETRY_COUNT=0
 
-echo "Checking backend readiness at $BACKEND_URL"
+echo "Backend URL: $BACKEND_URL"
+echo "Publishable Key: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:0:20}..."
 
-# Wait for backend health check
+# Wait for backend health AND publishable key validation
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # Test 1: Basic health check
     if curl -f -m 5 "$BACKEND_URL/health" >/dev/null 2>&1; then
         echo "✓ Backend health check passed"
         
-        # SIMPLIFIED: Only check environment variable (no file operations)
+        # Test 2: Publishable key validation
         if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
-            key_display=$(echo "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
-            echo "✓ Found publishable key: ${key_display}..."
-            
-            # Test store API with publishable key
-            echo "Testing store API with publishable key..."
             if curl -f -m 10 "$BACKEND_URL/store/regions" \
                -H "x-publishable-api-key: $NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" >/dev/null 2>&1; then
-                echo "✓ Store API test successful"
+                echo "✓ Publishable key validation successful"
+                echo "✓ Backend is ready for storefront build"
                 break
             else
-                echo "⚠️ Store API test failed, but backend is responsive"
-                echo "⚠️ This may indicate the key is not yet in the database"
-                break
+                echo "⚠️ Publishable key validation failed, retrying..."
             fi
         else
-            echo "⚠️ No publishable key found in environment"
-            echo "⚠️ Build will use fallback mechanisms"
-            break
+            echo "⚠️ No publishable key available, retrying..."
         fi
     else
         echo "Backend not ready, waiting... ($((RETRY_COUNT + 1))/$MAX_RETRIES)"
@@ -43,21 +39,11 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     sleep 5
 done
 
-# Final status
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "❌ Backend failed to become ready within timeout"
-    echo "⚠️ Proceeding with build anyway (will use fallbacks)"
-else
-    echo "✓ Backend is ready"
+    echo "❌ Backend not ready after timeout"
+    echo "⚠️ Proceeding with build anyway (may use fallbacks)"
 fi
 
-# Display final status
-if [ -n "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" ]; then
-    key_display=$(echo "$NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" | cut -c1-20)
-    echo "✓ Starting storefront build with key: ${key_display}..."
-else
-    echo "⚠️ Starting storefront build without publishable key"
-    echo "⚠️ Build will use safe fallback mechanisms"
-fi
-
-echo "=== Storefront build starting ==="
+echo "==============================================="
+echo "Starting Next.js build with backend ready"
+echo "==============================================="
