@@ -24,6 +24,8 @@ RUN yarn install --network-timeout 600000
 # Copy source code (do NOT build yet)
 COPY . ./
 
+RUN chmod +x ./wait-for-backend.sh
+
 # Create user and set permissions
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 && \
